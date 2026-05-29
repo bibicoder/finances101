@@ -24,7 +24,7 @@ final class CharityAccrual {
         self.date = date
         self.baseAmount = baseAmount
         self.percentage = percentage
-        self.accruedAmount = baseAmount * Decimal(percentage / 100.0)
+        self.accruedAmount = baseAmount * Decimal(percentage) / 100
         self.linkedIncomeId = linkedIncomeId
         self.note = note
         self.createdAt = Date()

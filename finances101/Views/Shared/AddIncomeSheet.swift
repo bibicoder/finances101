@@ -204,7 +204,7 @@ struct AddIncomeSheet: View {
                 
                 Spacer()
                 
-                Text("\(currencySymbol)\((amountDecimal * Decimal(charityPercentage / 100)).formatted())")
+                Text("\(currencySymbol)\((amountDecimal * Decimal(charityPercentage) / 100).formatted())")
                     .foregroundStyle(AppColors.charity)
                     .fontWeight(.semibold)
             }

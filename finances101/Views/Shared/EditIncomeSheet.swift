@@ -83,7 +83,7 @@ struct EditIncomeSheet: View {
                                 .foregroundStyle(.purple)
                             Text("Charity (\(Int(charityPercentage))%)")
                             Spacer()
-                            Text("$\((amountDecimal * Decimal(charityPercentage / 100)).formatted())")
+                            Text("$\((amountDecimal * Decimal(charityPercentage) / 100).formatted())")
                                 .foregroundStyle(.purple)
                                 .fontWeight(.semibold)
                         }
