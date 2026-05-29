@@ -47,7 +47,7 @@ struct AnalyticsView: View {
                 .reduce(Decimal(0)) { $0 + $1.amount }
             
             let monthExpense = expenses
-                .filter { $0.dueDate >= monthDate && $0.dueDate < nextMonth && $0.status == .paid }
+                .filter { $0.dueDate >= monthDate && $0.dueDate < nextMonth && $0.status == .paid && !$0.isDebtPayment }
                 .reduce(Decimal(0)) { $0 + $1.amount }
             
             result.append(MonthlyTrendData(month: monthDate, income: monthIncome, expense: monthExpense))
@@ -216,7 +216,7 @@ struct AnalyticsView: View {
     }
     
     private func calculateCategoryTotals() -> [(category: String, amount: Decimal, percentage: Double)] {
-        let paidExpenses = expenses.filter { $0.status == .paid }
+        let paidExpenses = expenses.filter { $0.status == .paid && !$0.isDebtPayment }
         let total = paidExpenses.reduce(Decimal(0)) { $0 + $1.amount }
         
         guard total > 0 else { return [] }
@@ -237,7 +237,7 @@ struct AnalyticsView: View {
             .reduce(Decimal(0)) { $0 + $1.amount }
         
         let totalExpense = expenses
-            .filter { $0.status == .paid }
+            .filter { $0.status == .paid && !$0.isDebtPayment }
             .reduce(Decimal(0)) { $0 + $1.amount }
         
         return (totalIncome, totalExpense)
@@ -252,7 +252,7 @@ struct AnalyticsView: View {
             .reduce(Decimal(0)) { $0 + $1.amount }
         
         let projectedExpenses = expenses
-            .filter { $0.status == .planned && $0.dueDate >= today && $0.dueDate <= futureDate }
+            .filter { $0.status == .planned && $0.dueDate >= today && $0.dueDate <= futureDate && !$0.isDebtPayment }
             .reduce(Decimal(0)) { $0 + $1.amount }
         
         return (projectedIncome, projectedExpenses)

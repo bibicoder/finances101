@@ -24,8 +24,9 @@ final class ExpenseEntry: Identifiable {
     var note: String?
     var isRecurring: Bool
     var recurringTemplateId: UUID?
+    var isDebtPayment: Bool
     var createdAt: Date
-    
+
     init(
         id: UUID = UUID(),
         title: String,
@@ -36,7 +37,8 @@ final class ExpenseEntry: Identifiable {
         status: ExpenseStatus = .planned,
         note: String? = nil,
         isRecurring: Bool = false,
-        recurringTemplateId: UUID? = nil
+        recurringTemplateId: UUID? = nil,
+        isDebtPayment: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -48,6 +50,7 @@ final class ExpenseEntry: Identifiable {
         self.note = note
         self.isRecurring = isRecurring
         self.recurringTemplateId = recurringTemplateId
+        self.isDebtPayment = isDebtPayment
         self.createdAt = Date()
     }
 }

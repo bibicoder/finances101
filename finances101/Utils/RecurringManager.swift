@@ -19,7 +19,7 @@ final class RecurringManager {
             generateFromTemplate(template, until: endDate)
         }
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
     }
     
     private func generateFromTemplate(_ template: RecurringTemplate, until endDate: Date) {

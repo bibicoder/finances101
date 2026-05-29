@@ -120,7 +120,7 @@ struct AddWishlistSheet: View {
         )
         
         modelContext.insert(item)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

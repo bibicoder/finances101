@@ -126,14 +126,14 @@ struct EditExpenseSheet: View {
         expense.status = status
         expense.note = note.isEmpty ? nil : note
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }
     
     private func deleteExpense() {
         modelContext.delete(expense)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

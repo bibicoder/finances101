@@ -140,34 +140,16 @@ struct EditIncomeSheet: View {
         income.category = category
         income.note = note.isEmpty ? nil : note
         
-        if wasNotPaid && nowPaid {
-            let existingAccrual = checkAccrualExists()
-            if !existingAccrual {
-                let accrual = CharityAccrual(
-                    date: payoutDate,
-                    baseAmount: amountDecimal,
-                    percentage: charityPercentage,
-                    linkedIncomeId: income.id,
-                    note: "From: \(title)"
-                )
-                modelContext.insert(accrual)
-            }
-        }
+        CharityManager.createAccrualIfNeeded(for: income, in: modelContext)
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }
     
-    private func checkAccrualExists() -> Bool {
-        let descriptor = FetchDescriptor<CharityAccrual>()
-        guard let accruals = try? modelContext.fetch(descriptor) else { return false }
-        return accruals.contains { $0.linkedIncomeId == income.id }
-    }
-    
     private func deleteIncome() {
         modelContext.delete(income)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

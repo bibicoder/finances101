@@ -171,7 +171,7 @@ struct SettingsView: View {
         settings.currencySymbol = currencySymbol
         settings.updatedAt = Date()
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
     }
     
     private func exportJSON() {

@@ -9,7 +9,8 @@ struct WishlistRowView: View {
     
     @State private var showScheduleSheet = false
     @State private var showEditSheet = false
-    
+    @State private var showDeleteConfirm = false
+
     private var affordabilityStatus: AffordabilityStatus {
         if item.status == .bought {
             return .bought
@@ -91,7 +92,7 @@ struct WishlistRowView: View {
             }
             
             Button(role: .destructive) {
-                deleteItem()
+                showDeleteConfirm = true
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -101,6 +102,13 @@ struct WishlistRowView: View {
         }
         .sheet(isPresented: $showEditSheet) {
             EditWishlistSheet(item: item)
+        }
+        .confirmationDialog("Delete \"\(item.title)\"?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                deleteItem()
+            }
+        } message: {
+            Text("This will permanently delete this wishlist item.")
         }
     }
     
@@ -151,13 +159,13 @@ struct WishlistRowView: View {
         )
         modelContext.insert(expense)
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
     }
     
     private func deleteItem() {
         modelContext.delete(item)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
     }
 }
 
@@ -231,7 +239,7 @@ struct ScheduleWishlistSheet: View {
         )
         modelContext.insert(expense)
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

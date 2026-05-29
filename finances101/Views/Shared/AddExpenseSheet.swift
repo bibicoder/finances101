@@ -230,7 +230,7 @@ struct AddExpenseSheet: View {
         )
         
         modelContext.insert(expense)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

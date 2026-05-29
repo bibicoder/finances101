@@ -122,14 +122,14 @@ struct EditDebtSheet: View {
         debt.targetDate = hasTargetDate ? targetDate : nil
         debt.note = note.isEmpty ? nil : note
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }
     
     private func deleteDebt() {
         modelContext.delete(debt)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

@@ -103,7 +103,7 @@ struct AddCharityPaymentSheet: View {
         )
         
         modelContext.insert(payment)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

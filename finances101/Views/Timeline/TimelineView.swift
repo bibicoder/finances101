@@ -114,10 +114,6 @@ struct TimelineView: View {
         return items.sorted { $0.date < $1.date }
     }
     
-    private var charityPercentage: Double {
-        settings.first?.charityPercentage ?? 25.0
-    }
-    
     private var timelineList: some View {
         List {
             ForEach(Array(timelineItems.enumerated()), id: \.element.id) { index, item in
@@ -166,23 +162,10 @@ struct TimelineView: View {
     
     private func markIncomeAsPaid(id: UUID) {
         guard let income = incomes.first(where: { $0.id == id }) else { return }
-        
-        let wasNotPaid = income.status != .paid
         income.status = .paid
         income.payoutDate = Date()
-        
-        if wasNotPaid {
-            let accrual = CharityAccrual(
-                date: Date(),
-                baseAmount: income.amount,
-                percentage: charityPercentage,
-                linkedIncomeId: income.id,
-                note: "From: \(income.title)"
-            )
-            modelContext.insert(accrual)
-        }
-        
-        try? modelContext.save()
+        CharityManager.createAccrualIfNeeded(for: income, in: modelContext)
+        modelContext.saveWithLogging()
         HapticManager.success()
     }
     
@@ -190,7 +173,7 @@ struct TimelineView: View {
         guard let expense = expenses.first(where: { $0.id == id }) else { return }
         expense.status = .paid
         expense.dueDate = Date()
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
     }
     

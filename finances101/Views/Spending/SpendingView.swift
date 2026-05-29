@@ -153,7 +153,7 @@ struct SpendingView: View {
             .reduce(Decimal(0)) { $0 + $1.amount }
         
         let spending = expenses
-            .filter { $0.dueDate >= startDate && $0.dueDate <= endDate && $0.status == .paid }
+            .filter { $0.dueDate >= startDate && $0.dueDate <= endDate && $0.status == .paid && !$0.isDebtPayment }
             .reduce(Decimal(0)) { $0 + $1.amount }
         
         return (earnings, spending)
@@ -161,7 +161,7 @@ struct SpendingView: View {
     
     private func filterExpenses() -> [ExpenseEntry] {
         let (startDate, endDate) = getDateRange()
-        return expenses.filter { $0.dueDate >= startDate && $0.dueDate <= endDate }
+        return expenses.filter { $0.dueDate >= startDate && $0.dueDate <= endDate && !$0.isDebtPayment }
     }
     
     private func getDateRange() -> (Date, Date) {

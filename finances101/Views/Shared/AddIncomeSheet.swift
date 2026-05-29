@@ -246,19 +246,9 @@ struct AddIncomeSheet: View {
         )
         
         modelContext.insert(income)
+        CharityManager.createAccrualIfNeeded(for: income, in: modelContext)
         
-        if status == .paid {
-            let accrual = CharityAccrual(
-                date: payoutDate,
-                baseAmount: amountDecimal,
-                percentage: charityPercentage,
-                linkedIncomeId: income.id,
-                note: "From: \(title)"
-            )
-            modelContext.insert(accrual)
-        }
-        
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

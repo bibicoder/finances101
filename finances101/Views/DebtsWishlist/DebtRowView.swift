@@ -8,6 +8,7 @@ struct DebtRowView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showPaymentSheet = false
     @State private var showEditSheet = false
+    @State private var showDeleteConfirm = false
     
     var body: some View {
         VStack(spacing: 12) {
@@ -83,8 +84,7 @@ struct DebtRowView: View {
             }
             
             Button(role: .destructive) {
-                modelContext.delete(debt)
-                try? modelContext.save()
+                showDeleteConfirm = true
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -94,6 +94,14 @@ struct DebtRowView: View {
         }
         .sheet(isPresented: $showEditSheet) {
             EditDebtSheet(debt: debt)
+        }
+        .confirmationDialog("Delete \"\(debt.creditor)\"?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                modelContext.delete(debt)
+                modelContext.saveWithLogging()
+            }
+        } message: {
+            Text("This will permanently delete this debt.")
         }
     }
 }
@@ -149,11 +157,12 @@ struct DebtPaymentSheet: View {
             dueDate: Date(),
             category: "Debt",
             type: .mandatory,
-            status: .paid
+            status: .paid,
+            isDebtPayment: true
         )
         modelContext.insert(expense)
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

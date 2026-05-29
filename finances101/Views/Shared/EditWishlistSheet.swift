@@ -153,14 +153,14 @@ struct EditWishlistSheet: View {
         item.category = category
         item.note = note.isEmpty ? nil : note
         
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }
     
     private func deleteItem() {
         modelContext.delete(item)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

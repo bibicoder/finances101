@@ -116,7 +116,7 @@ struct AddDebtSheet: View {
         )
         
         modelContext.insert(debt)
-        try? modelContext.save()
+        modelContext.saveWithLogging()
         HapticManager.success()
         dismiss()
     }

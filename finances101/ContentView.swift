@@ -65,10 +65,13 @@ struct ContentView: View {
     
     private func setupApp() {
         ensureSettingsExist()
-        
+
+        let settingsDescriptor = FetchDescriptor<AppSettings>()
+        let horizonDays = (try? modelContext.fetch(settingsDescriptor))?.first?.defaultHorizonDays ?? 30
+
         let recurringManager = RecurringManager(modelContext: modelContext)
-        recurringManager.generateUpcomingRecurring(horizonDays: 90)
-        
+        recurringManager.generateUpcomingRecurring(horizonDays: horizonDays)
+
         let statusManager = StatusUpdateManager(modelContext: modelContext)
         statusManager.updateOverdueStatuses()
     }
@@ -78,7 +81,7 @@ struct ContentView: View {
         if let settings = try? modelContext.fetch(descriptor), settings.isEmpty {
             let defaultSettings = AppSettings()
             modelContext.insert(defaultSettings)
-            try? modelContext.save()
+            modelContext.saveWithLogging()
         }
     }
 }
