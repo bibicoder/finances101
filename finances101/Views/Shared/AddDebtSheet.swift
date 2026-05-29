@@ -12,7 +12,27 @@ struct AddDebtSheet: View {
     @State private var hasTargetDate = false
     @State private var targetDate = Date()
     @State private var note = ""
-    
+
+    private var parsedTotal: Decimal? {
+        Decimal(string: totalAmount.trimmingCharacters(in: .whitespaces))
+    }
+
+    private var parsedPaid: Decimal {
+        Decimal(string: paidAmount.trimmingCharacters(in: .whitespaces)) ?? 0
+    }
+
+    private var isFormValid: Bool {
+        !creditor.trimmingCharacters(in: .whitespaces).isEmpty &&
+        (parsedTotal ?? 0) > 0 &&
+        parsedPaid <= (parsedTotal ?? 0)
+    }
+
+    private var paidAmountError: String? {
+        guard !paidAmount.isEmpty, let total = parsedTotal else { return nil }
+        if parsedPaid > total { return "Already paid can't exceed total amount" }
+        return nil
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -35,6 +55,12 @@ struct AddDebtSheet: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 120)
+                    }
+
+                    if let error = paidAmountError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
                 
@@ -70,15 +96,15 @@ struct AddDebtSheet: View {
                     Button("Save") {
                         saveDebt()
                     }
-                    .disabled(creditor.isEmpty || totalAmount.isEmpty)
+                    .disabled(!isFormValid)
                 }
             }
         }
     }
     
     private func saveDebt() {
-        guard let total = Decimal(string: totalAmount) else { return }
-        let paid = Decimal(string: paidAmount) ?? 0
+        guard let total = parsedTotal, total > 0, parsedPaid <= total else { return }
+        let paid = parsedPaid
         
         let debt = Debt(
             creditor: creditor,

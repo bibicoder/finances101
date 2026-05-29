@@ -10,9 +10,18 @@ struct AddWishlistSheet: View {
     @State private var priority: WishlistPriority = .medium
     @State private var category = "General"
     @State private var note = ""
-    
+
     private let categories = ["General", "Electronics", "Clothing", "Home", "Travel", "Vehicle", "Entertainment", "Other"]
-    
+
+    private var parsedAmount: Decimal? {
+        Decimal(string: amount.trimmingCharacters(in: .whitespaces))
+    }
+
+    private var isFormValid: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty &&
+        (parsedAmount ?? 0) > 0
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -77,7 +86,7 @@ struct AddWishlistSheet: View {
                     Button("Save") {
                         saveItem()
                     }
-                    .disabled(title.isEmpty || amount.isEmpty)
+                    .disabled(!isFormValid)
                 }
             }
         }
@@ -100,7 +109,7 @@ struct AddWishlistSheet: View {
     }
     
     private func saveItem() {
-        guard let amountDecimal = Decimal(string: amount) else { return }
+        guard let amountDecimal = parsedAmount, amountDecimal > 0 else { return }
         
         let item = WishlistItem(
             title: title,

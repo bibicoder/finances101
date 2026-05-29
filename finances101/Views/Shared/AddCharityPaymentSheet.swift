@@ -21,7 +21,15 @@ struct AddCharityPaymentSheet: View {
         let totalPaid = payments.reduce(0) { $0 + $1.amount }
         return totalAccrued - totalPaid
     }
-    
+
+    private var parsedAmount: Decimal? {
+        Decimal(string: amount.trimmingCharacters(in: .whitespaces))
+    }
+
+    private var isFormValid: Bool {
+        (parsedAmount ?? 0) > 0
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -79,14 +87,14 @@ struct AddCharityPaymentSheet: View {
                     Button("Save") {
                         savePayment()
                     }
-                    .disabled(amount.isEmpty)
+                    .disabled(!isFormValid)
                 }
             }
         }
     }
     
     private func savePayment() {
-        guard let amountDecimal = Decimal(string: amount) else { return }
+        guard let amountDecimal = parsedAmount, amountDecimal > 0 else { return }
         
         let payment = CharityPayment(
             date: date,

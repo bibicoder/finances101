@@ -20,7 +20,23 @@ struct AddExpenseSheet: View {
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
     }
-    
+
+    private var parsedAmount: Decimal? {
+        Decimal(string: amount.trimmingCharacters(in: .whitespaces))
+    }
+
+    private var isFormValid: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty &&
+        (parsedAmount ?? 0) > 0
+    }
+
+    private var amountError: String? {
+        guard !amount.isEmpty else { return nil }
+        if let v = parsedAmount, v <= 0 { return "Amount must be greater than 0" }
+        if parsedAmount == nil { return "Enter a valid number" }
+        return nil
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -46,7 +62,7 @@ struct AddExpenseSheet: View {
                         saveExpense()
                     }
                     .fontWeight(.semibold)
-                    .disabled(title.isEmpty || amount.isEmpty)
+                    .disabled(!isFormValid)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -74,6 +90,12 @@ struct AddExpenseSheet: View {
                     .focused($isAmountFocused)
             }
             .frame(maxWidth: .infinity)
+
+            if let error = amountError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
         .padding(.vertical, 24)
         .appCard()
@@ -176,7 +198,7 @@ struct AddExpenseSheet: View {
     }
     
     private func saveExpense() {
-        guard let amountDecimal = Decimal(string: amount) else { return }
+        guard let amountDecimal = parsedAmount, amountDecimal > 0 else { return }
         
         var templateId: UUID? = nil
         let finalType = isRecurring ? ExpenseType.recurring : type
