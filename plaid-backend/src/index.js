@@ -1,4 +1,4 @@
-const PLAID_BASE = 'https://sandbox.plaid.com';
+const PLAID_BASE = 'https://production.plaid.com';
 
 async function plaid(path, body, env) {
   return fetch(`${PLAID_BASE}${path}`, {
