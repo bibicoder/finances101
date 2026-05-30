@@ -12,6 +12,7 @@ struct DebtsWishlistView: View {
     @State private var showAddDebt = false
     @State private var showAddWishlist = false
     @State private var safeToSpendAmount: Decimal = 0
+    @State private var showAddSubscription = false
     
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
@@ -23,21 +24,23 @@ struct DebtsWishlistView: View {
                 Picker("View", selection: $selectedSegment) {
                     Text("Debts").tag(0)
                     Text("Wishlist").tag(1)
+                    Text("Subscriptions").tag(2)
                 }
                 .pickerStyle(.segmented)
                 .padding()
-                
+
                 if selectedSegment == 0 {
                     debtsSection
-                } else {
+                } else if selectedSegment == 1 {
                     wishlistSection
+                } else {
+                    SubscriptionsView()
                 }
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Plans")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    // Viewer can add wishlist items; only owner can add debts
                     if selectedSegment == 0 && roleManager.canEdit {
                         Button { showAddDebt = true } label: {
                             Image(systemName: "plus.circle.fill")
@@ -140,6 +143,7 @@ struct DebtsWishlistView: View {
         .modelContainer(for: [
             Debt.self,
             WishlistItem.self,
+            Subscription.self,
             AppSettings.self,
             IncomeEntry.self,
             ExpenseEntry.self,

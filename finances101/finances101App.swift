@@ -14,7 +14,8 @@ struct finances101App: App {
             Debt.self,
             WishlistItem.self,
             RecurringTemplate.self,
-            AppSettings.self
+            AppSettings.self,
+            Subscription.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .automatic)
 
