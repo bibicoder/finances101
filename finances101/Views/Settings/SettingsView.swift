@@ -20,6 +20,11 @@ struct SettingsView: View {
     @State private var showPINSetup = false
     @State private var showRemovePINAlert = false
     @State private var pinExists = KeychainManager.hasWifePIN()
+
+    @State private var showConnectBank = false
+    @State private var showImportTransactions = false
+    @State private var showDisconnectBankAlert = false
+    @State private var plaidManager = PlaidManager.shared
     
     private let currencies = [
         ("USD", "$"),
@@ -41,6 +46,7 @@ struct SettingsView: View {
                 charitySection
                 currencySection
                 if roleManager.canEdit {
+                    bankSection
                     familyViewSection
                     dataSection
                     advancedSection
@@ -89,6 +95,21 @@ struct SettingsView: View {
                 pinExists = KeychainManager.hasWifePIN()
             }) {
                 PINSetupSheet()
+            }
+            .sheet(isPresented: $showConnectBank) {
+                ConnectBankView()
+            }
+            .sheet(isPresented: $showImportTransactions) {
+                PlaidImportView()
+            }
+            .alert("Disconnect Bank?", isPresented: $showDisconnectBankAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Disconnect", role: .destructive) {
+                    plaidManager.disconnect()
+                    HapticManager.success()
+                }
+            } message: {
+                Text("This removes the bank connection. Your imported transactions will remain.")
             }
         }
     }
@@ -178,6 +199,40 @@ struct SettingsView: View {
         }
     }
     
+    private var bankSection: some View {
+        Section {
+            HStack {
+                Image(systemName: "building.columns.fill")
+                    .foregroundStyle(AppColors.primaryLight)
+                Text("Bank Account")
+                Spacer()
+                Text(plaidManager.isConnected ? plaidManager.connectedBankName : "Not connected")
+                    .foregroundStyle(plaidManager.isConnected ? AppColors.income : .secondary)
+                    .font(.subheadline)
+                    .lineLimit(1)
+            }
+
+            if plaidManager.isConnected {
+                Button("Import Transactions") {
+                    showImportTransactions = true
+                }
+                Button("Disconnect Bank", role: .destructive) {
+                    showDisconnectBankAlert = true
+                }
+            } else {
+                Button("Connect Bank (Plaid)") {
+                    showConnectBank = true
+                }
+            }
+        } header: {
+            Text("Bank Integration")
+        } footer: {
+            Text(plaidManager.isConnected
+                 ? "Pull the latest transactions from \(plaidManager.connectedBankName) into Finance 101."
+                 : "Connect your bank to automatically import transactions via Plaid.")
+        }
+    }
+
     private var familyViewSection: some View {
         Section {
             HStack {

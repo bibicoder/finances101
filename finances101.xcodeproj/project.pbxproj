@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9FB2CB832FCB5AFF00351B40 /* LinkKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9FB2CB822FCB5AFF00351B40 /* LinkKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		9F8BA9B42F5C502A006DF574 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9FB2CB832FCB5AFF00351B40 /* LinkKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +130,7 @@
 			);
 			name = finances101;
 			packageProductDependencies = (
+				9FB2CB822FCB5AFF00351B40 /* LinkKit */,
 			);
 			productName = finances101;
 			productReference = 9F8BA9A12F5C5027006DF574 /* finances101.app */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = 9F8BA9982F5C5027006DF574;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9FB2CB812FCB5AFF00351B40 /* XCRemoteSwiftPackageReference "plaid-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9F8BA9A22F5C5027006DF574 /* Products */;
 			projectDirPath = "";
@@ -595,6 +604,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9FB2CB812FCB5AFF00351B40 /* XCRemoteSwiftPackageReference "plaid-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/plaid/plaid-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.4.7;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9FB2CB822FCB5AFF00351B40 /* LinkKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9FB2CB812FCB5AFF00351B40 /* XCRemoteSwiftPackageReference "plaid-ios" */;
+			productName = LinkKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9F8BA9992F5C5027006DF574 /* Project object */;
 }

@@ -1,0 +1,7 @@
+name = "finances101-plaid"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# After deploy, set secrets via:
+#   wrangler secret put PLAID_CLIENT_ID
+#   wrangler secret put PLAID_SECRET
