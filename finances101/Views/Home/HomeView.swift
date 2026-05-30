@@ -7,7 +7,10 @@ struct HomeView: View {
     @Query private var settings: [AppSettings]
     @Query(sort: \IncomeEntry.payoutDate) private var incomes: [IncomeEntry]
     @Query(sort: \ExpenseEntry.dueDate) private var expenses: [ExpenseEntry]
-    
+    @Query private var debts: [Debt]
+    @Query(sort: \CategoryBudget.category) private var budgets: [CategoryBudget]
+    @Query private var subscriptions: [Subscription]
+
     @State private var showAddIncome = false
     @State private var showAddExpense = false
     @State private var showAddCharityPayment = false
@@ -15,6 +18,7 @@ struct HomeView: View {
     @State private var showHealthScore = false
     @State private var balanceData: BalanceData?
     @State private var healthScore: HealthScore?
+    @State private var insights: [FinancialInsight] = []
     
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
@@ -31,6 +35,7 @@ struct HomeView: View {
                     totalBalanceCard
                     quickStatsGrid
                     healthScoreCard
+                    insightsCard
                     quickActionsSection
                     upcomingSection
                 }
@@ -41,6 +46,9 @@ struct HomeView: View {
             .onAppear { refreshBalances() }
             .onChange(of: incomes.count) { _, _ in refreshBalances() }
             .onChange(of: expenses.count) { _, _ in refreshBalances() }
+            .onChange(of: debts.count) { _, _ in refreshBalances() }
+            .onChange(of: budgets.count) { _, _ in refreshBalances() }
+            .onChange(of: subscriptions.count) { _, _ in refreshBalances() }
             .sheet(isPresented: $showAddIncome) {
                 AddIncomeSheet()
             }
@@ -66,8 +74,18 @@ struct HomeView: View {
     
     private func refreshBalances() {
         let calculator = BalanceCalculator(modelContext: modelContext)
-        balanceData = calculator.calculateAll()
+        let data = calculator.calculateAll()
+        balanceData = data
         healthScore = HealthScoreCalculator.calculate(modelContext: modelContext)
+        insights = FinancialInsightEngine.generate(
+            incomes: incomes,
+            expenses: expenses,
+            debts: debts,
+            budgets: budgets,
+            subscriptions: subscriptions,
+            charityOwed: data.charityOwed,
+            symbol: currencySymbol
+        )
     }
     
     private var totalBalanceCard: some View {
@@ -208,6 +226,13 @@ struct HomeView: View {
                 )
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var insightsCard: some View {
+        if !insights.isEmpty {
+            InsightCard(insights: insights)
         }
     }
 
