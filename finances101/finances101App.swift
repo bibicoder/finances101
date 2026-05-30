@@ -17,10 +17,17 @@ struct finances101App: App {
             AppSettings.self,
             Subscription.self
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .automatic)
 
+        // Try with CloudKit sync first; fall back to local-only if CloudKit schema migration fails
+        let cloudConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .automatic)
+        if let container = try? ModelContainer(for: schema, configurations: [cloudConfig]) {
+            return container
+        }
+
+        // CloudKit migration failed (e.g. new model added). Use local store without wiping data.
+        let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .none)
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [localConfig])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
