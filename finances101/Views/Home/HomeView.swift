@@ -3,6 +3,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(UserRoleManager.self) private var roleManager
     @Query private var settings: [AppSettings]
     @Query(sort: \IncomeEntry.payoutDate) private var incomes: [IncomeEntry]
     @Query(sort: \ExpenseEntry.dueDate) private var expenses: [ExpenseEntry]
@@ -155,24 +156,27 @@ struct HomeView: View {
         }
     }
     
+    @ViewBuilder
     private var quickActionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Quick Actions")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            
-            HStack(spacing: 12) {
-                ActionButton(title: "Income", icon: "plus.circle.fill", color: AppColors.income) {
-                    showAddIncome = true
-                }
-                
-                ActionButton(title: "Expense", icon: "minus.circle.fill", color: AppColors.expense) {
-                    showAddExpense = true
-                }
-                
-                if charityEnabled {
-                    ActionButton(title: "Charity", icon: "heart.circle.fill", color: AppColors.charity) {
-                        showAddCharityPayment = true
+        if roleManager.canEdit {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Quick Actions")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 12) {
+                    ActionButton(title: "Income", icon: "plus.circle.fill", color: AppColors.income) {
+                        showAddIncome = true
+                    }
+
+                    ActionButton(title: "Expense", icon: "minus.circle.fill", color: AppColors.expense) {
+                        showAddExpense = true
+                    }
+
+                    if charityEnabled {
+                        ActionButton(title: "Charity", icon: "heart.circle.fill", color: AppColors.charity) {
+                            showAddCharityPayment = true
+                        }
                     }
                 }
             }

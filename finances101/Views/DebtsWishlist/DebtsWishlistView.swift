@@ -3,6 +3,7 @@ import SwiftData
 
 struct DebtsWishlistView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(UserRoleManager.self) private var roleManager
     @Query private var settings: [AppSettings]
     @Query(sort: \Debt.priority) private var debts: [Debt]
     @Query(sort: \WishlistItem.createdAt, order: .reverse) private var wishlistItems: [WishlistItem]
@@ -36,14 +37,15 @@ struct DebtsWishlistView: View {
             .navigationTitle("Plans")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        if selectedSegment == 0 {
-                            showAddDebt = true
-                        } else {
-                            showAddWishlist = true
+                    // Viewer can add wishlist items; only owner can add debts
+                    if selectedSegment == 0 && roleManager.canEdit {
+                        Button { showAddDebt = true } label: {
+                            Image(systemName: "plus.circle.fill")
                         }
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
+                    } else if selectedSegment == 1 {
+                        Button { showAddWishlist = true } label: {
+                            Image(systemName: "plus.circle.fill")
+                        }
                     }
                 }
             }

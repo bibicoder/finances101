@@ -3,12 +3,15 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(UserRoleManager.self) private var roleManager
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var settings: [AppSettings]
     @State private var selectedTab = 0
     @State private var isLoaded = false
-    
+
     private var showCharityTab: Bool {
-        (settings.first?.charityPercentage ?? 0) > 0
+        (settings.first?.charityPercentage ?? 0) > 0 ||
+        (settings.first?.charityFixedAmount ?? 0) > 0
     }
     
     var body: some View {
@@ -54,6 +57,11 @@ struct ContentView: View {
         .tint(AppColors.primaryDeep)
         .onChange(of: selectedTab) { _, _ in
             HapticManager.selection()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                roleManager.resetToLock()
+            }
         }
         .onAppear {
             if !isLoaded {

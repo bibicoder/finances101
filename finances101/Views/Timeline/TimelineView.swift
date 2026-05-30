@@ -3,6 +3,7 @@ import SwiftData
 
 struct TimelineView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(UserRoleManager.self) private var roleManager
     @Query private var settings: [AppSettings]
     @Query(sort: \IncomeEntry.payoutDate) private var incomes: [IncomeEntry]
     @Query(sort: \ExpenseEntry.dueDate) private var expenses: [ExpenseEntry]
@@ -123,34 +124,33 @@ struct TimelineView: View {
                     symbol: currencySymbol
                 )
                 .contextMenu {
-                    if item.type == .income {
-                        Button {
-                            selectedIncome = incomes.first { $0.id == item.id }
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        
-                        if item.status != "Paid" {
+                    if roleManager.canEdit {
+                        if item.type == .income {
                             Button {
-                                markIncomeAsPaid(id: item.id)
+                                selectedIncome = incomes.first { $0.id == item.id }
                             } label: {
-                                Label("Mark as Paid", systemImage: "checkmark.circle")
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            if item.status != "Paid" {
+                                Button {
+                                    markIncomeAsPaid(id: item.id)
+                                } label: {
+                                    Label("Mark as Paid", systemImage: "checkmark.circle")
+                                }
                             }
                         }
-                    }
-                    
-                    if item.type == .expense {
-                        Button {
-                            selectedExpense = expenses.first { $0.id == item.id }
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        
-                        if item.status != "Paid" {
+                        if item.type == .expense {
                             Button {
-                                markExpenseAsPaid(id: item.id)
+                                selectedExpense = expenses.first { $0.id == item.id }
                             } label: {
-                                Label("Mark as Paid", systemImage: "checkmark.circle")
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            if item.status != "Paid" {
+                                Button {
+                                    markExpenseAsPaid(id: item.id)
+                                } label: {
+                                    Label("Mark as Paid", systemImage: "checkmark.circle")
+                                }
                             }
                         }
                     }

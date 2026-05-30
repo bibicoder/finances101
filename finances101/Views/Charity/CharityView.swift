@@ -3,6 +3,7 @@ import SwiftData
 
 struct CharityView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(UserRoleManager.self) private var roleManager
     @Query private var settings: [AppSettings]
     @Query(sort: \CharityAccrual.date, order: .reverse) private var accruals: [CharityAccrual]
     @Query(sort: \CharityPayment.date, order: .reverse) private var payments: [CharityPayment]
@@ -46,11 +47,13 @@ struct CharityView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Charity")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showAddPayment = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
+                if roleManager.canEdit {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showAddPayment = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                        }
                     }
                 }
             }
@@ -94,7 +97,7 @@ struct CharityView: View {
                 )
             }
             
-            if currentOwed > 0 {
+            if currentOwed > 0 && roleManager.canEdit {
                 suggestedPaymentCard
             }
         }
@@ -162,7 +165,7 @@ struct CharityView: View {
                         date: accrual.date,
                         amount: accrual.accruedAmount,
                         symbol: currencySymbol,
-                        subtitle: "From \(currencySymbol)\(accrual.baseAmount.formattedFull()) @ \(Int(accrual.percentage))%",
+                        subtitle: accrualSubtitle(for: accrual),
                         isPayment: false
                     )
                 }
@@ -170,6 +173,16 @@ struct CharityView: View {
         }
     }
     
+    private func accrualSubtitle(for accrual: CharityAccrual) -> String {
+        if accrual.note == "Fixed monthly charity" {
+            return "Fixed monthly amount"
+        } else if accrual.baseAmount > 0 && accrual.percentage > 0 {
+            return "From \(currencySymbol)\(accrual.baseAmount.formattedFull()) @ \(Int(accrual.percentage))%"
+        } else {
+            return accrual.note ?? "Charity"
+        }
+    }
+
     private var paymentsHistory: some View {
         VStack(spacing: 8) {
             if payments.isEmpty {

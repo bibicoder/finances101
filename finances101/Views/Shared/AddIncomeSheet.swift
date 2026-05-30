@@ -17,10 +17,6 @@ struct AddIncomeSheet: View {
     @State private var isRecurring = false
     @State private var recurringFrequency: RecurringFrequency = .monthly
     
-    private var charityPercentage: Double {
-        settings.first?.charityPercentage ?? 25.0
-    }
-
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
     }
@@ -195,22 +191,48 @@ struct AddIncomeSheet: View {
     
     @ViewBuilder
     private var charityPreview: some View {
-        if let amountDecimal = Decimal(string: amount), amountDecimal > 0, charityPercentage > 0 {
-            HStack {
-                Image(systemName: "heart.fill")
-                    .foregroundStyle(AppColors.charity)
-                
-                Text("Charity (\(Int(charityPercentage))%)")
-                
-                Spacer()
-                
-                Text("\(currencySymbol)\((amountDecimal * Decimal(charityPercentage) / 100).formatted())")
-                    .foregroundStyle(AppColors.charity)
-                    .fontWeight(.semibold)
+        if let s = settings.first, let amountDecimal = parsedAmount, amountDecimal > 0 {
+            let estimated = estimatedCharity(for: amountDecimal, settings: s)
+            if estimated > 0 {
+                HStack {
+                    Image(systemName: "heart.fill")
+                        .foregroundStyle(AppColors.charity)
+
+                    Text(charityLabel(settings: s))
+
+                    Spacer()
+
+                    Text("\(s.currencySymbol)\(estimated.formatted())")
+                        .foregroundStyle(AppColors.charity)
+                        .fontWeight(.semibold)
+                }
+                .padding()
+                .background(AppColors.charity.opacity(0.1))
+                .appCard()
             }
-            .padding()
-            .background(AppColors.charity.opacity(0.1))
-            .appCard()
+        }
+    }
+
+    private func estimatedCharity(for amount: Decimal, settings: AppSettings) -> Decimal {
+        switch settings.charityMode {
+        case .percentage:
+            return amount * Decimal(settings.charityPercentage) / 100
+        case .fixedAmount:
+            return settings.charityFixedAmount
+        case .combined:
+            let pct = amount * Decimal(settings.charityPercentage) / 100
+            return max(pct, settings.charityFixedAmount)
+        }
+    }
+
+    private func charityLabel(settings: AppSettings) -> String {
+        switch settings.charityMode {
+        case .percentage:
+            return "Charity (\(Int(settings.charityPercentage))%)"
+        case .fixedAmount:
+            return "Charity (fixed)"
+        case .combined:
+            return "Charity (combined)"
         }
     }
     

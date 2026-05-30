@@ -3,6 +3,8 @@ import SwiftData
 
 @main
 struct finances101App: App {
+    @State private var roleManager = UserRoleManager()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             IncomeEntry.self,
@@ -25,7 +27,13 @@ struct finances101App: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ZStack {
+                ContentView()
+                if roleManager.isLockScreenShown {
+                    AppLockView()
+                }
+            }
+            .environment(roleManager)
         }
         .modelContainer(sharedModelContainer)
     }
