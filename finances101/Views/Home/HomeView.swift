@@ -12,7 +12,9 @@ struct HomeView: View {
     @State private var showAddExpense = false
     @State private var showAddCharityPayment = false
     @State private var showBreakdown = false
+    @State private var showHealthScore = false
     @State private var balanceData: BalanceData?
+    @State private var healthScore: HealthScore?
     
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
@@ -28,6 +30,7 @@ struct HomeView: View {
                 VStack(spacing: 20) {
                     totalBalanceCard
                     quickStatsGrid
+                    healthScoreCard
                     quickActionsSection
                     upcomingSection
                 }
@@ -53,12 +56,18 @@ struct HomeView: View {
                     symbol: currencySymbol
                 )
             }
+            .sheet(isPresented: $showHealthScore) {
+                if let score = healthScore {
+                    HealthScoreView(score: score, symbol: currencySymbol)
+                }
+            }
         }
     }
     
     private func refreshBalances() {
         let calculator = BalanceCalculator(modelContext: modelContext)
         balanceData = calculator.calculateAll()
+        healthScore = HealthScoreCalculator.calculate(modelContext: modelContext)
     }
     
     private var totalBalanceCard: some View {
@@ -156,6 +165,52 @@ struct HomeView: View {
         }
     }
     
+    @ViewBuilder
+    private var healthScoreCard: some View {
+        if let score = healthScore {
+            Button { showHealthScore = true } label: {
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .stroke(score.gradeColor.opacity(0.2), lineWidth: 5)
+                            .frame(width: 52, height: 52)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(score.total) / 100)
+                            .stroke(score.gradeColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                            .frame(width: 52, height: 52)
+                            .rotationEffect(.degrees(-90))
+                        Text("\(score.total)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(score.gradeColor)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Financial Health")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                        Text("\(score.grade) · Tap for breakdown")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding()
+                .appCard()
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(score.gradeColor.opacity(0.25), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     @ViewBuilder
     private var quickActionsSection: some View {
         if roleManager.canEdit {
