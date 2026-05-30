@@ -7,6 +7,7 @@ struct AnalyticsView: View {
     @Query private var settings: [AppSettings]
     @Query(sort: \ExpenseEntry.dueDate, order: .reverse) private var expenses: [ExpenseEntry]
     @Query(sort: \IncomeEntry.payoutDate, order: .reverse) private var incomes: [IncomeEntry]
+    @Query private var debts: [Debt]
     
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
@@ -16,6 +17,7 @@ struct AnalyticsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    netWorthSection
                     savingsRateSection
                     TrendChartView(data: generateMonthlyTrends(), symbol: currencySymbol)
                     incomeVsSpendingSection
@@ -29,6 +31,166 @@ struct AnalyticsView: View {
         }
     }
     
+    // MARK: Net Worth
+
+    private var totalDebt: Decimal {
+        debts.reduce(Decimal(0)) { $0 + $1.remainingAmount }
+    }
+
+    private var currentBalance: Decimal {
+        let initial = settings.first?.initialBalance ?? 0
+        let paidIncome = incomes.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
+        let paidExpense = expenses.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
+        return initial + paidIncome - paidExpense
+    }
+
+    private var netWorth: Decimal { currentBalance - totalDebt }
+
+    private var netWorthSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Net Worth")
+                .font(.headline)
+
+            // Big number
+            VStack(spacing: 4) {
+                Text("\(netWorth >= 0 ? "" : "-")\(currencySymbol)\(abs(netWorth).formatted(.number.precision(.fractionLength(0))))")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(netWorth >= 0 ? AppColors.income : AppColors.expense)
+                Text("Assets minus Liabilities")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider()
+
+            // Assets vs Liabilities
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("Assets", systemImage: "building.columns.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(currencySymbol)\(max(currentBalance, 0).formatted(.number.precision(.fractionLength(0))))")
+                        .font(.title3).fontWeight(.bold)
+                        .foregroundStyle(AppColors.income)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Label("Liabilities", systemImage: "creditcard.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(currencySymbol)\(totalDebt.formatted(.number.precision(.fractionLength(0))))")
+                        .font(.title3).fontWeight(.bold)
+                        .foregroundStyle(totalDebt > 0 ? AppColors.expense : .secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+
+            // Split bar
+            if currentBalance > 0 || totalDebt > 0 {
+                let total = Double(truncating: (max(currentBalance, 0) + totalDebt) as NSDecimalNumber)
+                let assetRatio = total > 0
+                    ? Double(truncating: max(currentBalance, 0) as NSDecimalNumber) / total
+                    : 0
+                GeometryReader { geo in
+                    HStack(spacing: 2) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(AppColors.income)
+                            .frame(width: max(geo.size.width * assetRatio - 1, 0), height: 10)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(AppColors.expense.opacity(0.7))
+                            .frame(width: max(geo.size.width * (1 - assetRatio) - 1, 0), height: 10)
+                    }
+                }
+                .frame(height: 10)
+            }
+
+            // 6-month chart
+            if !netWorthHistory().isEmpty {
+                Divider()
+                Text("6-Month Trend")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Chart(netWorthHistory()) { point in
+                    LineMark(
+                        x: .value("Month", point.month, unit: .month),
+                        y: .value("Net Worth", Double(truncating: point.value as NSDecimalNumber))
+                    )
+                    .foregroundStyle(netWorth >= 0 ? AppColors.income : AppColors.expense)
+                    .interpolationMethod(.catmullRom)
+
+                    AreaMark(
+                        x: .value("Month", point.month, unit: .month),
+                        y: .value("Net Worth", Double(truncating: point.value as NSDecimalNumber))
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [
+                                (netWorth >= 0 ? AppColors.income : AppColors.expense).opacity(0.25),
+                                .clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.catmullRom)
+                }
+                .frame(height: 100)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { value in
+                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .trailing) { value in
+                        AxisValueLabel {
+                            if let d = value.as(Double.self) {
+                                Text("\(currencySymbol)\(Int(d / 1000))k")
+                                    .font(.caption2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .appCard()
+    }
+
+    private struct NetWorthPoint: Identifiable {
+        let id = UUID()
+        let month: Date
+        let value: Decimal
+    }
+
+    private func netWorthHistory() -> [NetWorthPoint] {
+        let calendar = Calendar.current
+        let today = Date()
+        var points: [NetWorthPoint] = []
+        let initial = settings.first?.initialBalance ?? 0
+
+        for offset in -5...0 {
+            guard let monthStart = calendar.date(byAdding: .month, value: offset, to: today),
+                  let monthDate = calendar.date(from: calendar.dateComponents([.year, .month], from: monthStart)),
+                  let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthDate)
+            else { continue }
+
+            let cumulativeIncome = incomes
+                .filter { $0.status == .paid && $0.payoutDate < nextMonth }
+                .reduce(Decimal(0)) { $0 + $1.amount }
+            let cumulativeExpense = expenses
+                .filter { $0.status == .paid && $0.dueDate < nextMonth }
+                .reduce(Decimal(0)) { $0 + $1.amount }
+
+            let balanceAtMonth = initial + cumulativeIncome - cumulativeExpense
+            let nwAtMonth = balanceAtMonth - totalDebt
+            points.append(NetWorthPoint(month: monthDate, value: nwAtMonth))
+        }
+        return points
+    }
+
     private func generateMonthlyTrends() -> [MonthlyTrendData] {
         let calendar = Calendar.current
         let today = Date()
