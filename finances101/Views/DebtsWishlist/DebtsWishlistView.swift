@@ -13,6 +13,7 @@ struct DebtsWishlistView: View {
     @State private var showAddWishlist = false
     @State private var safeToSpendAmount: Decimal = 0
     @State private var showAddSubscription = false
+    @State private var showPayoffCalculator = false
     
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
@@ -51,12 +52,25 @@ struct DebtsWishlistView: View {
                         }
                     }
                 }
+                if selectedSegment == 0 && !debts.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            showPayoffCalculator = true
+                        } label: {
+                            Label("Payoff", systemImage: "chart.line.downtrend.xyaxis")
+                                .font(.subheadline)
+                        }
+                    }
+                }
             }
             .sheet(isPresented: $showAddDebt) {
                 AddDebtSheet()
             }
             .sheet(isPresented: $showAddWishlist) {
                 AddWishlistSheet()
+            }
+            .sheet(isPresented: $showPayoffCalculator) {
+                DebtPayoffView()
             }
             .onAppear {
                 let calculator = BalanceCalculator(modelContext: modelContext)

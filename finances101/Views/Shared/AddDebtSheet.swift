@@ -8,6 +8,8 @@ struct AddDebtSheet: View {
     @State private var creditor = ""
     @State private var totalAmount = ""
     @State private var paidAmount = ""
+    @State private var interestRate = ""
+    @State private var minimumPayment = ""
     @State private var priority = 1
     @State private var hasTargetDate = false
     @State private var targetDate = Date()
@@ -64,6 +66,30 @@ struct AddDebtSheet: View {
                     }
                 }
                 
+                Section {
+                    HStack {
+                        Text("Interest Rate (APR)")
+                        Spacer()
+                        TextField("0.0", text: $interestRate)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                        Text("%").foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Min. Monthly Payment")
+                        Spacer()
+                        TextField("0.00", text: $minimumPayment)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 100)
+                    }
+                } header: {
+                    Text("For Payoff Calculator")
+                } footer: {
+                    Text("Optional — used to calculate exact payoff dates and interest paid.")
+                }
+
                 Section("Priority") {
                     Picker("Priority", selection: $priority) {
                         Text("Low").tag(3)
@@ -112,7 +138,9 @@ struct AddDebtSheet: View {
             paidAmount: paid,
             priority: priority,
             targetDate: hasTargetDate ? targetDate : nil,
-            note: note.isEmpty ? nil : note
+            note: note.isEmpty ? nil : note,
+            interestRate: Double(interestRate),
+            minimumPayment: Decimal(string: minimumPayment)
         )
         
         modelContext.insert(debt)

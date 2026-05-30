@@ -10,18 +10,22 @@ struct EditDebtSheet: View {
     @State private var creditor: String
     @State private var totalAmount: String
     @State private var paidAmount: String
+    @State private var interestRate: String
+    @State private var minimumPayment: String
     @State private var priority: Int
     @State private var hasTargetDate: Bool
     @State private var targetDate: Date
     @State private var note: String
-    
+
     @State private var showDeleteAlert = false
-    
+
     init(debt: Debt) {
         self.debt = debt
         _creditor = State(initialValue: debt.creditor)
         _totalAmount = State(initialValue: "\(debt.totalAmount)")
         _paidAmount = State(initialValue: "\(debt.paidAmount)")
+        _interestRate = State(initialValue: debt.interestRate.map { "\($0)" } ?? "")
+        _minimumPayment = State(initialValue: debt.minimumPayment.map { "\($0)" } ?? "")
         _priority = State(initialValue: debt.priority)
         _hasTargetDate = State(initialValue: debt.targetDate != nil)
         _targetDate = State(initialValue: debt.targetDate ?? Date())
@@ -53,6 +57,30 @@ struct EditDebtSheet: View {
                     }
                 }
                 
+                Section {
+                    HStack {
+                        Text("Interest Rate (APR)")
+                        Spacer()
+                        TextField("0.0", text: $interestRate)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                        Text("%").foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Min. Monthly Payment")
+                        Spacer()
+                        TextField("0.00", text: $minimumPayment)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 100)
+                    }
+                } header: {
+                    Text("For Payoff Calculator")
+                } footer: {
+                    Text("Optional — used to calculate exact payoff dates and interest paid.")
+                }
+
                 Section("Priority") {
                     Picker("Priority", selection: $priority) {
                         Text("Low").tag(3)
@@ -118,6 +146,8 @@ struct EditDebtSheet: View {
         debt.creditor = creditor
         debt.totalAmount = total
         debt.paidAmount = paid
+        debt.interestRate = Double(interestRate)
+        debt.minimumPayment = Decimal(string: minimumPayment)
         debt.priority = priority
         debt.targetDate = hasTargetDate ? targetDate : nil
         debt.note = note.isEmpty ? nil : note

@@ -11,6 +11,8 @@ final class Debt {
     var targetDate: Date?
     var note: String?
     var createdAt: Date
+    var interestRate: Double?    // APR %, e.g. 18.5 means 18.5%
+    var minimumPayment: Decimal? // monthly minimum payment
     
     var remainingAmount: Decimal {
         totalAmount - paidAmount
@@ -28,7 +30,9 @@ final class Debt {
         paidAmount: Decimal = 0,
         priority: Int = 1,
         targetDate: Date? = nil,
-        note: String? = nil
+        note: String? = nil,
+        interestRate: Double? = nil,
+        minimumPayment: Decimal? = nil
     ) {
         self.id = id
         self.creditor = creditor
@@ -38,5 +42,7 @@ final class Debt {
         self.targetDate = targetDate
         self.note = note
         self.createdAt = Date()
+        self.interestRate = interestRate
+        self.minimumPayment = minimumPayment
     }
 }
