@@ -16,6 +16,7 @@ struct SpendingView: View {
     
     @State private var selectedPeriod: TimePeriod = .month
     @State private var selectedMonth = Date()
+    @State private var showBudget = false
     
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
@@ -53,6 +54,19 @@ struct SpendingView: View {
             }
             .background(AppColors.background)
             .navigationTitle("Spending")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showBudget = true
+                    } label: {
+                        Label("Budget", systemImage: "chart.bar.fill")
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .sheet(isPresented: $showBudget) {
+                BudgetView()
+            }
         }
     }
     

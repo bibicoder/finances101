@@ -15,7 +15,8 @@ struct finances101App: App {
             WishlistItem.self,
             RecurringTemplate.self,
             AppSettings.self,
-            Subscription.self
+            Subscription.self,
+            CategoryBudget.self
         ])
 
         // Try with CloudKit sync first; fall back to local-only if CloudKit schema migration fails
