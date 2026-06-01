@@ -62,13 +62,6 @@ struct SubscriptionsView: View {
             systemImage: "repeat.circle.fill",
             description: Text("Track Netflix, Spotify, gym and other recurring payments")
         )
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showAdd = true } label: {
-                    Image(systemName: "plus.circle.fill")
-                }
-            }
-        }
     }
 
     private var subscriptionList: some View {

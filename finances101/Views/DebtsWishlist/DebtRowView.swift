@@ -31,7 +31,7 @@ struct DebtRowView: View {
                     Text("\(symbol)\(debt.remainingAmount.formatted())")
                         .font(.title3)
                         .fontWeight(.bold)
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(AppColors.expense)
                     
                     Text("of \(symbol)\(debt.totalAmount.formatted())")
                         .font(.caption)
@@ -90,7 +90,7 @@ struct DebtRowView: View {
             }
         }
         .sheet(isPresented: $showPaymentSheet) {
-            DebtPaymentSheet(debt: debt)
+            DebtPaymentSheet(debt: debt, symbol: symbol)
         }
         .sheet(isPresented: $showEditSheet) {
             EditDebtSheet(debt: debt)
@@ -111,6 +111,7 @@ struct DebtPaymentSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let debt: Debt
+    var symbol: String = "$"
     @State private var paymentAmount: String = ""
     @State private var confettiTrigger = 0
     @State private var showCelebration = false
@@ -122,19 +123,23 @@ struct DebtPaymentSheet: View {
                     HStack {
                         Text("Remaining")
                         Spacer()
-                        Text("$\(debt.remainingAmount.formatted())")
+                        Text("\(symbol)\(debt.remainingAmount.formatted())")
                             .foregroundStyle(.secondary)
                     }
 
-                    TextField("Payment Amount", text: $paymentAmount)
-                        .keyboardType(.decimalPad)
+                    HStack {
+                        Text(symbol)
+                            .foregroundStyle(.secondary)
+                        TextField("0.00", text: $paymentAmount)
+                            .keyboardType(.decimalPad)
+                    }
                 }
 
                 Section {
                     Button("Record Payment") {
                         recordPayment()
                     }
-                    .disabled(paymentAmount.isEmpty)
+                    .disabled(paymentAmount.isEmpty || (Decimal(string: paymentAmount) ?? 0) <= 0)
                 }
             }
             .navigationTitle("Pay Debt")

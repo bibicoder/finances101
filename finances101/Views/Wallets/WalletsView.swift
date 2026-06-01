@@ -152,6 +152,8 @@ struct WalletsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\(fromName) → \(toName)")
                             .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                         Text(transfer.date, style: .date)
                             .font(.caption)
                             .foregroundStyle(AppColors.textSecondary)

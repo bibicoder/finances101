@@ -63,6 +63,9 @@ final class UserRoleManager {
             currentRole = .viewer
             isLockScreenShown = false
             saveRole()
+        } else if role == .unset {
+            // User tapped "Change Device Role" — hide lock screen while setup screen is visible
+            isLockScreenShown = false
         } else {
             currentRole = .owner
             isLockScreenShown = KeychainManager.hasWifePIN()

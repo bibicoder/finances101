@@ -72,13 +72,6 @@ struct BudgetView: View {
             systemImage: "chart.bar.fill",
             description: Text("Set monthly limits per category to track spending")
         )
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showAddBudget = true } label: {
-                    Image(systemName: "plus.circle.fill")
-                }
-            }
-        }
     }
 
     // MARK: Budget List
@@ -233,6 +226,7 @@ private struct BudgetRow: View {
                         .font(.subheadline).fontWeight(.semibold)
                     Text("\(symbol)\(spent.formatted(.number.precision(.fractionLength(0)))) of \(symbol)\(budget.monthlyLimit.formatted(.number.precision(.fractionLength(0))))")
                         .font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(1).minimumScaleFactor(0.8)
                 }
 
                 Spacer()

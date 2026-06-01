@@ -435,6 +435,8 @@ private struct BudgetRowItem: View {
                     Text("\(symbol)\(spent.formatted()) / \(symbol)\(limit.formatted())")
                         .font(.system(size: 12, weight: .medium).monospacedDigit())
                         .foregroundStyle(isWarning ? AppColors.warning : AppColors.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 AppProgressBar(value: Double(truncating: spent as NSDecimalNumber),
                                total: Double(truncating: limit as NSDecimalNumber))

@@ -5,6 +5,9 @@ struct AddWalletSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Wallet.sortOrder) private var wallets: [Wallet]
+    @Query private var settings: [AppSettings]
+
+    private var symbol: String { settings.first?.currencySymbol ?? "$" }
 
     @State private var name = ""
     @State private var type: WalletType = .card
@@ -33,7 +36,7 @@ struct AddWalletSheet: View {
 
                 Section("Initial Balance") {
                     HStack {
-                        Text("$")
+                        Text(symbol)
                             .foregroundStyle(AppColors.textSecondary)
                         TextField("0.00", text: $initialBalance)
                             .keyboardType(.decimalPad)

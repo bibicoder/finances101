@@ -5,8 +5,12 @@ struct AddBudgetSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @Query private var settings: [AppSettings]
+
     var editing: CategoryBudget? = nil
     var existingCategories: [String] = []
+
+    private var symbol: String { settings.first?.currencySymbol ?? "$" }
 
     @State private var selectedCategory: String = ""
     @State private var limitText: String = ""
@@ -79,7 +83,7 @@ struct AddBudgetSheet: View {
 
                 Section("Monthly Limit") {
                     HStack {
-                        Text("$")
+                        Text(symbol)
                             .foregroundStyle(.secondary)
                         TextField("0.00", text: $limitText)
                             .keyboardType(.decimalPad)

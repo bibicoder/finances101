@@ -184,8 +184,8 @@ struct DebtPayoffView: View {
     private func orderColor(_ order: Int) -> Color {
         switch order {
         case 1: return AppColors.income
-        case 2: return Color.orange
-        case 3: return .orange
+        case 2: return .orange
+        case 3: return AppColors.expense
         default: return .secondary
         }
     }
