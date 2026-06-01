@@ -31,6 +31,9 @@ final class AppSettings {
     var currency: String
     var currencySymbol: String
     var defaultHorizonDays: Int
+    var plaidCashBalance: Decimal?        // sum of checking + savings from last Plaid sync
+    var plaidCreditBalance: Decimal?     // sum of credit card balances from last Plaid sync
+    var plaidSyncedAt: Date?             // timestamp of last successful Plaid balance sync
     var createdAt: Date
     var updatedAt: Date
 
@@ -54,6 +57,9 @@ final class AppSettings {
         self.currency = currency
         self.currencySymbol = currencySymbol
         self.defaultHorizonDays = defaultHorizonDays
+        self.plaidCashBalance = nil
+        self.plaidCreditBalance = nil
+        self.plaidSyncedAt = nil
         self.createdAt = Date()
         self.updatedAt = Date()
     }

@@ -348,6 +348,11 @@ struct HomeView: View {
         )
         let data = calculator.calculateAll()
         balanceData = data
+        WidgetDataWriter.update(
+            balance: data.actualBalance,
+            safeToSpend: data.safeToSpend,
+            currencySymbol: currencySymbol
+        )
         healthScore = HealthScoreCalculator.calculate(
             incomes: incomes, expenses: expenses, debts: debts,
             accruals: charityAccruals, payments: charityPayments,

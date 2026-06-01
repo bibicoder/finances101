@@ -85,13 +85,13 @@ final class BalanceCalculator {
     private func sumIncomingIncome(before date: Date) -> Decimal {
         let now = Date()
         return cachedIncomes
-            .filter { ($0.status == .earned || $0.status == .planned) && $0.payoutDate <= date && $0.payoutDate > now }
+            .filter { $0.status.isUpcoming && $0.payoutDate <= date && $0.payoutDate > now }
             .reduce(0) { $0 + $1.amount }
     }
 
     private func sumIncomingIncome(from startDate: Date, to endDate: Date) -> Decimal {
         cachedIncomes
-            .filter { ($0.status == .earned || $0.status == .planned) && $0.payoutDate >= startDate && $0.payoutDate <= endDate }
+            .filter { $0.status.isUpcoming && $0.payoutDate >= startDate && $0.payoutDate <= endDate }
             .reduce(0) { $0 + $1.amount }
     }
 

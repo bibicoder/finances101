@@ -34,11 +34,17 @@ struct ContentView: View {
                 }
                 .tag(3)
 
+            WalletsView()
+                .tabItem {
+                    Label("Wallets", systemImage: "wallet.pass.fill")
+                }
+                .tag(4)
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
-                .tag(4)
+                .tag(5)
         }
         .tint(AppColors.primaryDeep)
         .onAppear {
@@ -60,6 +66,8 @@ struct ContentView: View {
             appearance.stackedLayoutAppearance = item
             appearance.inlineLayoutAppearance = item
             appearance.compactInlineLayoutAppearance = item
+            // Clear the default selection indicator that causes the dark flash on tap
+            appearance.selectionIndicatorImage = UIImage()
 
             UITabBar.appearance().standardAppearance = appearance
             UITabBar.appearance().scrollEdgeAppearance = appearance
@@ -91,6 +99,13 @@ struct ContentView: View {
 
         let statusManager = StatusUpdateManager(modelContext: modelContext)
         statusManager.updateOverdueStatuses()
+
+        if NotificationManager.shared.isEnabled {
+            let expenses = (try? modelContext.fetch(FetchDescriptor<ExpenseEntry>())) ?? []
+            let debts = (try? modelContext.fetch(FetchDescriptor<Debt>())) ?? []
+            let subscriptions = (try? modelContext.fetch(FetchDescriptor<Subscription>())) ?? []
+            NotificationManager.shared.scheduleAll(expenses: expenses, debts: debts, subscriptions: subscriptions)
+        }
     }
     
     private func ensureSettingsExist() {

@@ -124,18 +124,22 @@ struct TimelineRowView: View {
 
     private var statusColor: Color {
         switch item.status {
-        case "Paid", "Sent":       return AppColors.income
-        case "Planned", "Pending": return AppColors.warning
-        case "Accrued":            return AppColors.charity
-        default:                   return AppColors.textSecondary
+        case "Paid", "Sent", "Earned":  return AppColors.income
+        case "Planned", "Pending":      return AppColors.warning
+        case "Delayed":                 return Color(hex: "D97706")  // amber
+        case "Cancelled":               return AppColors.expense
+        case "Accrued":                 return AppColors.charity
+        default:                        return AppColors.textSecondary
         }
     }
-    
+
     private var statusIcon: String {
         switch item.status {
-        case "Paid", "Sent": return "checkmark.circle.fill"
-        case "Planned", "Pending": return "clock.fill"
-        default: return "circle.fill"
+        case "Paid", "Sent", "Earned": return "checkmark.circle.fill"
+        case "Planned", "Pending":     return "clock.fill"
+        case "Delayed":                return "exclamationmark.circle.fill"
+        case "Cancelled":              return "xmark.circle.fill"
+        default:                       return "circle.fill"
         }
     }
 }

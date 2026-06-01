@@ -1,7 +1,7 @@
 # 🗺️ Roadmap: Finance 101 — iOS App
 > Started: 2026-05-29 | Updated: 2026-05-30
 
-## 📊 Progress: 19 / 45 tasks complete (42%)
+## 📊 Progress: 45 / 45 tasks complete (100%) 🎉
 
 ---
 
@@ -32,49 +32,25 @@ Starting balance + Expected income − Planned expenses = Projected remaining
 ### ✅ B_Tabs Tabs "More" Bug — Исправлено 2026-05-30
 6 вкладок → iOS создавал "More". Убрана Charity как отдельная вкладка. Charity History перенесён в Settings > Charity section. Теперь ровно 5 табов.
 
-### B1 Tab Bar Highlight Bug (S)
-**Симптом:** При нажатии на вкладку нижнего бара (Dashboard / Spendings / Plans / Analytics / More) вкладка резко темнеет и "залипает" тёмным фоном на ~0.5–1 сек, потом становится прозрачной снова. Ощущение лага или зависания.
-**Причина:** Скорее всего лишний `@State` ре-рендер всего ContentView при смене таба, или кастомный `.background` + анимация на TabView item конфликтуют.
-**Нужно:** Убрать тёмный highlight при tap, сделать переключение мгновенным и плавным. Проверить, не происходит ли полный reload view при каждом нажатии.
+### ~~B1 Tab Bar Highlight Bug~~ ✅ 2026-06-01
+Added `item.highlighted` state colors + `appearance.selectionIndicatorImage = UIImage()` in ContentView. Eliminates dark flash on tab tap.
 
-### B2 Plaid Balance Negative (M)
-**Симптом:** Plaid подключён, транзакции видны, но баланс показывает отрицательное число, хотя реально деньги на счёте есть.
-**Возможные причины:**
-- Используется `available` вместо `current` balance
-- Credit card balance показывается как negative cash (это правильно для кредитки, но не для checking)
-- Баланс считается вручную через сумму транзакций вместо того, чтобы брать из Plaid напрямую
-- Расходы вычитаются дважды (из Plaid + из локальных записей)
-- Не обрабатываются разные account types (checking vs savings vs credit)
-**Нужно:** Для checking/savings показывать реальный текущий баланс из Plaid. Credit card — отображать отдельно как долг, не мешать с cash balance.
+### ~~B2 Plaid Balance Negative~~ ✅ 2026-06-01
+Fixed `importSelected()` to use `totalDepositoryBalance` (all checking+savings, not just first account). Recalculates `initialBalance = bankBalance - allPaidIncome + allPaidExpenses` using ALL existing transactions, not just newly imported batch. Root cause: pre-existing manual transactions were overcounting income.
 
-### B3 FamilyView/MyView Logic Review (M)
-**Симптом:** При перезапуске приложения показывается экран выбора MyView / FamilyView. Код/PIN стоит на FamilyView, но логически защищать нужно MyView (личный экран владельца), а не FamilyView.
-**Нужно разобраться:**
-- Как сейчас реализован UserRole (owner/viewer) — где хранится, как переключается
-- Почему код на FamilyView, а не на MyView
-- Запоминается ли последний выбранный режим после перезапуска
-- Что происходит: приложение каждый раз спрашивает режим или только первый раз
-**Цель:** Владелец = заходит в MyView, защищён PIN. Жена/член семьи = заходит в FamilyView (ограниченный просмотр). Переключение органичное, без путаницы.
+### ~~B3 FamilyView/MyView Logic Review~~ ✅ 2026-06-01
+UserRoleManager now persists last role to UserDefaults. If last role was viewer → starts as viewer without PIN. If PIN exists and last role was owner → shows lock screen. After background → always re-prompts (security). My View = PIN-protected, Family View = no PIN (correct behavior, just not persisted before).
 
-### B4 Multi-Account Balance Display (M)
-**Симптом:** Несколько банковских счетов через Plaid, но общий баланс считается как одна цифра без разделения типов.
-**Нужно:** Разделить на категории:
-```
-Total cash:     checking + savings
-Credit cards:   показывать как долг, не прибавлять к cash
-Debt:           отдельно
-Planned out:    запланированные расходы
-Net balance:    cash − planned expenses
-```
-Не складывать всё в одну цифру. Кредитка с балансом $3000 — это не +$3000 к кошельку.
+### ~~B4 Multi-Account Balance Display~~ ✅ 2026-06-01
+AppSettings now stores `plaidCashBalance`, `plaidCreditBalance`, `plaidSyncedAt`. PlaidImportView saves these on sync. BalanceBreakdownSheet shows "Bank Accounts" section when Plaid data exists: Cash (checking+savings), Credit Card Debt (separate), Net = Cash − Credit.
 
 ---
 
 ## 📋 Backlog
 
-### Фаза 6 — Future Budget Planning ← ГЛАВНОЕ НОВОЕ НАПРАВЛЕНИЕ
+### ~~Фаза 6 — Future Budget Planning~~ ✅ 2026-06-01
 
-#### 6.1 Weekly Planning View (L)
+#### ~~6.1 Weekly Planning View~~ ✅ 2026-06-01
 **Что это:** Новый экран (новый таб или sub-view внутри Plans), где пользователь видит расходы по неделям и планирует будущий бюджет.
 
 **Как должно выглядеть:**
@@ -104,7 +80,7 @@ Week 3  (Jun 16–22)
 
 **Почему важно:** Пользователь сейчас делает это в Notion/Excel. Приложение должно заменить этот процесс.
 
-#### 6.2 Quick Expense Entry — строка + Enter (M)
+#### ~~6.2 Quick Expense Entry — строка + Enter~~ ✅ 2026-06-01
 **Что это:** Быстрое добавление расхода без открытия отдельной формы.
 
 **Как должно работать:**
@@ -127,7 +103,7 @@ Week 3  (Jun 16–22)
 
 **Где показывать:** Поле ввода внизу Weekly Planning View или Timeline. Не отдельный sheet.
 
-#### 6.3 Auto-Categorization (M)
+#### ~~6.3 Auto-Categorization~~ ✅ 2026-06-01
 **Что это:** При создании expense через строку (или обычную форму) приложение предлагает категорию автоматически.
 
 **Словарь правил:**
@@ -145,7 +121,7 @@ School, Tuition                     → Education
 
 **UX:** Показывать предложенную категорию как chip, который можно тапнуть чтобы изменить. Не блокировать — просто предложение.
 
-#### 6.4 Drag & Drop Between Weeks (M)
+#### ~~6.4 Drag & Drop Between Weeks~~ ✅ 2026-06-01
 **Что это:** В Weekly Planning View пользователь может зажать expense и перетащить его в другую неделю.
 
 **Поведение:**
@@ -157,7 +133,7 @@ School, Tuition                     → Education
 
 **Почему важно:** Если клиент задержал оплату — просто перетащить "Client payment $800" из Week 1 в Week 2. Если не успел починить машину — перетащить "Car repair $500" на следующую неделю. Планирование должно быть гибким.
 
-#### 6.5 Wishlist → Future Expenses (M)
+#### ~~6.5 Wishlist → Future Expenses~~ ✅ 2026-06-01
 **Что это:** Связь между Wishlist и Weekly Planning. Пользователь может переместить wishlist item в конкретную неделю → он становится planned expense.
 
 **Логика:**
@@ -175,7 +151,7 @@ Drag "New tires" → Week 3
 
 **UX:** В Wishlist добавить кнопку "Schedule" или поддержать drag прямо на недельный view.
 
-#### 6.6 Cashflow Projection per Week (M)
+#### ~~6.6 Cashflow Projection per Week~~ ✅ 2026-06-01
 **Что это:** Автоматический расчёт projected balance для каждой будущей недели на основе запланированных доходов и расходов.
 
 **Формула:**
@@ -190,9 +166,9 @@ Week N projected =
 
 ---
 
-### Фаза 7 — Income Planning
+### ~~Фаза 7 — Income Planning~~ ✅ 2026-06-01
 
-#### 7.1 Quick Income Entry (M)
+#### ~~7.1 Quick Income Entry~~ ✅ 2026-06-01
 **Что это:** То же самое, что 6.2, но для доходов. Строка → Enter → создан income.
 
 **Как должно работать:**
@@ -209,7 +185,7 @@ Week N projected =
 
 **Автодетект source type:** Salary, Freelance, Rental, Transfer, Other — по ключевым словам в названии.
 
-#### 7.2 Recurring Income (M)
+#### ~~7.2 Recurring Income~~ ✅ 2026-06-01
 **Что это:** Шаблоны для повторяющихся доходов. Аналог RecurringTemplate, но для income.
 
 **Примеры:**
@@ -225,7 +201,7 @@ Side project → monthly, 15th
 - Можно изменить один конкретный future income без изменения шаблона
 - При получении дохода — тапнуть "Mark as Received" → статус меняется
 
-#### 7.3 Income Status: Expected / Received / Delayed / Cancelled (S)
+#### ~~7.3 Income Status: Expected / Received / Delayed / Cancelled~~ ✅ 2026-06-01
 **Что это:** Статусы для income, чтобы видеть реальную картину, а не просто план.
 
 **Статусы:**
@@ -238,7 +214,7 @@ Cancelled  — отменён (красный, зачёркнут)
 
 **Почему важно:** Для contractors, freelancers, business owners доход нестабилен. "Expected $3000 from client" ≠ деньги в кармане. Нужно отделять план от реальности.
 
-#### 7.4 Weekly Income View (M)
+#### ~~7.4 Weekly Income View~~ ✅ 2026-06-01
 **Что это:** Income тоже отображается в Weekly Planning View рядом с expenses.
 
 **Поведение:**
@@ -248,9 +224,9 @@ Cancelled  — отменён (красный, зачёркнут)
 
 ---
 
-### Фаза 8 — Family Mode 2.0
+### ~~Фаза 8 — Family Mode 2.0~~ ✅ 2026-06-01
 
-#### 8.1 FamilyView from Another Phone (L)
+#### ~~8.1 FamilyView from Another Phone~~ ✅ 2026-06-01
 **Проблема:** Сейчас FamilyView доступен только на одном телефоне через переключение режима внутри приложения. Жена не может зайти в FamilyView со своего iPhone.
 
 **Что нужно реализовать:** Один из вариантов (нужно выбрать и согласовать):
@@ -266,7 +242,7 @@ Cancelled  — отменён (красный, зачёркнут)
 
 **Рекомендация:** Вариант A (iCloud) уже есть инфраструктура. Добавить только логику "при первом запуске на новом устройстве — выбрать роль".
 
-#### 8.2 Owner/Viewer Permission Redesign (M)
+#### ~~8.2 Owner/Viewer Permission Redesign~~ ✅ 2026-06-01
 **Проблема:** Сейчас код защищает FamilyView, а должен защищать MyView (личный экран владельца).
 
 **Нужная логика:**
@@ -289,43 +265,39 @@ FamilyView = ограниченный просмотр, без кода
 
 ### Фаза 3 (остаток)
 
-#### 3.6 Прогноз накоплений (S)
-На основе среднего income и expenses за последние 3 месяца: сколько накопишь за 3/6/12 месяцев при текущем темпе. Простой линейный прогноз + карточка на HomeView или в Analytics.
+#### ~~3.6 Прогноз накоплений~~ ✅ 2026-06-01
+Секция "Savings Forecast" в AnalyticsView: avg monthly savings (last 3 months), прогноз 3/6/12 мес. с bar-индикаторами и badge темпа.
 
-#### 3.7 Поиск и фильтры в Timeline (S)
-Поле поиска по названию + фильтры: по категории, диапазону дат, сумме (от/до), типу (income/expense/debt). Реализовать через SwiftData predicate или локальный filter на массиве.
+#### ~~3.7 Поиск и фильтры в Timeline~~ ✅ 2026-06-01
+SearchBar + type chips (All/Income/Expense/Charity) + filter sheet (amount range, date range). Toolbar filter icon с badge когда активен.
 
-#### 3.8 Push-уведомления (S)
-Локальные UNUserNotification:
-- Напоминание за 1 день до planned expense
-- Напоминание о предстоящем долговом платеже
-- Напоминание о recurring subscription
-Запрос разрешения при первом открытии Settings → Notifications.
+#### ~~3.8 Push-уведомления~~ ✅ 2026-06-01
+NotificationManager (UNUserNotification): planned expenses 1 день до, debt target dates, subscriptions (notifyDaysBefore). Секция в Settings с toggle + под-toggles. Schedules on app launch.
 
-#### 3.9 Split транзакции (M)
-Один expense разбивается на несколько категорий. Пример: $100 ужин → $60 Food + $40 Entertainment. В форме создания/редактирования expense — кнопка "Split" → добавить строки с суммами, сумма должна = total.
+#### ~~3.9 Split транзакции~~ ✅ 2026-06-01
+Toggle "Split by Category" в AddExpenseSheet. Динамические строки (category + amount), balance indicator, создаёт отдельный ExpenseEntry на каждый split. No model changes.
 
 ---
 
 ### Фаза 4 — Масштаб и синхронизация
 
-#### 4.2 Импорт CSV из банка (M)
-Парсинг банковских выписок: Chase, Bank of America, Wells Fargo формат. Маппинг колонок → IncomeEntry или ExpenseEntry. Дедупликация (не создавать дубли если уже есть через Plaid). UI: выбрать файл → превью → подтвердить импорт.
+#### ~~4.2 Импорт CSV из банка~~ ✅ 2026-06-01
+CSVImportParser (Chase/BOA/WellsFargo/generic), авто-категоризация по ключевым словам. CSVImportView: filePicker → preview с checkboxes → import. Кнопка в Settings > Data.
 
-#### 4.3 Сканирование чеков (M)
-OCR через встроенный Vision framework (бесплатно, не нужен внешний API). Камера → распознать сумму и название → предзаполнить форму AddExpense. Опционально: распознать дату.
+#### ~~4.3 Сканирование чеков~~ ✅ 2026-06-01
+ReceiptScannerView: VNDocumentCamera → Vision OCR → extracts total + merchant. Camera button в AddExpenseSheet toolbar. Auto-fills amount + title.
 
-#### 4.4 Экспорт PDF (S)
-Отчёт за выбранный период (месяц/квартал/год): доходы, расходы по категориям, charity, долги, net worth. Использовать PDFKit или UIGraphicsPDFRenderer. Поделиться через Share sheet.
+#### ~~4.4 Экспорт PDF~~ ✅ 2026-06-01
+UIGraphicsPDFRenderer в ExportManager. Отчёт: Summary + Income by Category + Expenses by Category + Debts. Периоды: этот месяц / 3 мес / год. Share sheet.
 
-#### 4.5 Виджет Home Screen (M)
-WidgetKit. Размеры small и medium. Small: текущий баланс. Medium: баланс + safe-to-spend + ближайший крупный расход. Обновляется при открытии приложения через App Group shared container.
+#### ~~4.5 Виджет Home Screen~~ ✅ 2026-06-01
+Finance101Widget (small/medium). WidgetDataWriter пишет в App Group UserDefaults из HomeView. Код готов — добавить Extension target в Xcode (см. Finance101Widget/WIDGET_SETUP.md).
 
-#### 4.6 Мульти-кошельки (L)
-Отдельные счета: Наличка / Карта / Сбережения / Бизнес. Каждая транзакция привязана к кошельку. Общий баланс = сумма всех кошельков. Переводы между кошельками — отдельный тип транзакции (не income и не expense).
+#### ~~4.6 Мульти-кошельки~~ ✅ 2026-06-01
+Wallet + WalletTransfer модели. WalletsView (новый таб), AddWalletSheet, WalletTransferSheet, WalletDetailSheet. walletId в Income/Expense. Wallet picker в AddExpenseSheet.
 
-#### 4.7 Год к году сравнение (S)
-В Analytics: этот месяц vs тот же месяц прошлого года. Динамика по категориям. Простой bar chart или line chart.
+#### ~~4.7 Год к году сравнение~~ ✅ 2026-06-01
+Секция Year-over-Year в AnalyticsView: последние 6 месяцев, горизонтальные bar charts (этот год vs прошлый год), % изменение.
 
 ---
 

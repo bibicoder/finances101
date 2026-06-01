@@ -16,7 +16,9 @@ struct finances101App: App {
             RecurringTemplate.self,
             AppSettings.self,
             Subscription.self,
-            CategoryBudget.self
+            CategoryBudget.self,
+            Wallet.self,
+            WalletTransfer.self
         ])
 
         // Try with CloudKit sync first; fall back to local-only if CloudKit schema migration fails
@@ -40,6 +42,10 @@ struct finances101App: App {
                 ContentView()
                 if roleManager.isLockScreenShown {
                     AppLockView()
+                }
+                if roleManager.needsDeviceSetup {
+                    DeviceSetupView()
+                        .transition(.opacity)
                 }
             }
             .environment(roleManager)

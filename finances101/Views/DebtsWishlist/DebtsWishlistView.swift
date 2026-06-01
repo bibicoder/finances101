@@ -24,16 +24,19 @@ struct DebtsWishlistView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("View", selection: $selectedSegment) {
-                    Text("Debts").tag(0)
-                    Text("Wishlist").tag(1)
-                    Text("Subscriptions").tag(2)
+                    Text("Weekly").tag(0)
+                    Text("Debts").tag(1)
+                    Text("Wishlist").tag(2)
+                    Text("Subscriptions").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .padding()
 
                 if selectedSegment == 0 {
-                    debtsSection
+                    WeeklyPlanView()
                 } else if selectedSegment == 1 {
+                    debtsSection
+                } else if selectedSegment == 2 {
                     wishlistSection
                 } else {
                     SubscriptionsView()
@@ -43,17 +46,17 @@ struct DebtsWishlistView: View {
             .navigationTitle("Plans")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    if selectedSegment == 0 && roleManager.canEdit {
+                    if selectedSegment == 1 && roleManager.canEdit {
                         Button { showAddDebt = true } label: {
                             Image(systemName: "plus.circle.fill")
                         }
-                    } else if selectedSegment == 1 {
+                    } else if selectedSegment == 2 {
                         Button { showAddWishlist = true } label: {
                             Image(systemName: "plus.circle.fill")
                         }
                     }
                 }
-                if selectedSegment == 0 && !debts.isEmpty {
+                if selectedSegment == 1 && !debts.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
                             showPayoffCalculator = true

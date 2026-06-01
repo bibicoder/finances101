@@ -19,6 +19,8 @@ struct AnalyticsView: View {
                 VStack(spacing: 20) {
                     netWorthSection
                     savingsRateSection
+                    savingsForecastSection
+                    yearOverYearSection
                     TrendChartView(data: generateMonthlyTrends(), symbol: currencySymbol)
                     incomeVsSpendingSection
                     topCategoriesSection
@@ -408,16 +410,261 @@ struct AnalyticsView: View {
     private func calculateProjection() -> (income: Decimal, expenses: Decimal) {
         let today = Date()
         let futureDate = Calendar.current.date(byAdding: .day, value: 30, to: today) ?? today
-        
+
         let projectedIncome = incomes
             .filter { $0.status != .paid && $0.payoutDate >= today && $0.payoutDate <= futureDate }
             .reduce(Decimal(0)) { $0 + $1.amount }
-        
+
         let projectedExpenses = expenses
             .filter { $0.status == .planned && $0.dueDate >= today && $0.dueDate <= futureDate && !$0.isDebtPayment }
             .reduce(Decimal(0)) { $0 + $1.amount }
-        
+
         return (projectedIncome, projectedExpenses)
+    }
+
+    // MARK: Year-over-Year
+
+    private struct YoYMonth: Identifiable {
+        let id = UUID()
+        let month: Date
+        let label: String
+        let thisYear: Decimal
+        let lastYear: Decimal
+    }
+
+    private func yoyData() -> [YoYMonth] {
+        let calendar = Calendar.current
+        let today = Date()
+        var result: [YoYMonth] = []
+        let df = DateFormatter()
+        df.dateFormat = "MMM"
+
+        for offset in 0..<6 {
+            guard let thisMonthStart = calendar.date(
+                from: calendar.dateComponents([.year, .month], from: calendar.date(byAdding: .month, value: -offset, to: today) ?? today)
+            ),
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: thisMonthStart),
+            let lastYearMonthStart = calendar.date(byAdding: .year, value: -1, to: thisMonthStart),
+            let lastYearNextMonth = calendar.date(byAdding: .month, value: 1, to: lastYearMonthStart)
+            else { continue }
+
+            let thisExp = expenses
+                .filter { $0.status == .paid && $0.dueDate >= thisMonthStart && $0.dueDate < nextMonth && !$0.isDebtPayment }
+                .reduce(Decimal(0)) { $0 + $1.amount }
+            let lastExp = expenses
+                .filter { $0.status == .paid && $0.dueDate >= lastYearMonthStart && $0.dueDate < lastYearNextMonth && !$0.isDebtPayment }
+                .reduce(Decimal(0)) { $0 + $1.amount }
+
+            result.append(YoYMonth(month: thisMonthStart, label: df.string(from: thisMonthStart), thisYear: thisExp, lastYear: lastExp))
+        }
+        return result.reversed()
+    }
+
+    private var yearOverYearSection: some View {
+        let data = yoyData()
+        let currentYear = Calendar.current.component(.year, from: Date())
+        let hasData = data.contains { $0.thisYear > 0 || $0.lastYear > 0 }
+
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Year-over-Year")
+                    .font(.headline)
+                Spacer()
+                Text("Spending comparison")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+
+            if !hasData {
+                Text("Not enough data for year-over-year comparison yet.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        Circle().fill(AppColors.primaryDeep).frame(width: 8, height: 8)
+                        Text("\(currentYear)").font(.caption).foregroundStyle(AppColors.textSecondary)
+                    }
+                    HStack(spacing: 4) {
+                        Circle().fill(AppColors.primaryDeep.opacity(0.3)).frame(width: 8, height: 8)
+                        Text("\(currentYear - 1)").font(.caption).foregroundStyle(AppColors.textSecondary)
+                    }
+                }
+
+                let maxVal = data.flatMap { [$0.thisYear, $0.lastYear] }.max() ?? 1
+                VStack(spacing: 8) {
+                    ForEach(data) { item in
+                        HStack(spacing: 8) {
+                            Text(item.label)
+                                .font(.caption2)
+                                .foregroundStyle(AppColors.textSecondary)
+                                .frame(width: 28, alignment: .leading)
+
+                            GeometryReader { geo in
+                                VStack(spacing: 3) {
+                                    let thisRatio = maxVal > 0
+                                        ? CGFloat(truncating: (item.thisYear / maxVal) as NSDecimalNumber)
+                                        : 0
+                                    let lastRatio = maxVal > 0
+                                        ? CGFloat(truncating: (item.lastYear / maxVal) as NSDecimalNumber)
+                                        : 0
+
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(AppColors.primaryDeep)
+                                        .frame(width: geo.size.width * thisRatio, height: 10)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(AppColors.primaryDeep.opacity(0.3))
+                                        .frame(width: geo.size.width * lastRatio, height: 10)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            .frame(height: 23)
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(currencySymbol)\(item.thisYear.formatted(.number.precision(.fractionLength(0))))")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(AppColors.textPrimary)
+                                let delta = item.thisYear - item.lastYear
+                                if item.lastYear > 0 {
+                                    Text("\(delta > 0 ? "+" : "")\(Int(Double(truncating: (delta / item.lastYear * 100) as NSDecimalNumber)))%")
+                                        .font(.caption2)
+                                        .foregroundStyle(delta > 0 ? AppColors.expense : AppColors.income)
+                                }
+                            }
+                            .frame(width: 50, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .appCard()
+    }
+
+    // MARK: Savings Forecast
+
+    private struct ForecastPoint: Identifiable {
+        let id = UUID()
+        let label: String
+        let months: Int
+        let amount: Decimal
+    }
+
+    private func averageMonthlySavings() -> Decimal {
+        let calendar = Calendar.current
+        let today = Date()
+        var totalSavings = Decimal(0)
+        var monthsWithData = 0
+
+        for offset in -2...0 {
+            guard let monthStart = calendar.date(byAdding: .month, value: offset, to: today),
+                  let monthDate = calendar.date(from: calendar.dateComponents([.year, .month], from: monthStart)),
+                  let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthDate)
+            else { continue }
+
+            let monthIncome = incomes
+                .filter { $0.status == .paid && $0.payoutDate >= monthDate && $0.payoutDate < nextMonth }
+                .reduce(Decimal(0)) { $0 + $1.amount }
+            let monthExpense = expenses
+                .filter { $0.status == .paid && $0.dueDate >= monthDate && $0.dueDate < nextMonth && !$0.isDebtPayment }
+                .reduce(Decimal(0)) { $0 + $1.amount }
+
+            if monthIncome > 0 || monthExpense > 0 {
+                totalSavings += monthIncome - monthExpense
+                monthsWithData += 1
+            }
+        }
+
+        guard monthsWithData > 0 else { return 0 }
+        return totalSavings / Decimal(monthsWithData)
+    }
+
+    private func forecastPoints() -> [ForecastPoint] {
+        let avgMonthly = averageMonthlySavings()
+        let base = currentBalance
+        return [
+            ForecastPoint(label: "3 mo", months: 3, amount: base + avgMonthly * 3),
+            ForecastPoint(label: "6 mo", months: 6, amount: base + avgMonthly * 6),
+            ForecastPoint(label: "12 mo", months: 12, amount: base + avgMonthly * 12),
+        ]
+    }
+
+    private var savingsForecastSection: some View {
+        let avgMonthly = averageMonthlySavings()
+        let points = forecastPoints()
+        let isPositive = avgMonthly >= 0
+
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Savings Forecast")
+                    .font(.headline)
+                Spacer()
+                Label(
+                    "\(isPositive ? "+" : "")\(currencySymbol)\(abs(avgMonthly).formatted(.number.precision(.fractionLength(0))))/mo",
+                    systemImage: isPositive ? "arrow.up.right" : "arrow.down.right"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isPositive ? AppColors.income : AppColors.expense)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background((isPositive ? AppColors.income : AppColors.expense).opacity(0.12))
+                .clipShape(Capsule())
+            }
+
+            Text("Based on your avg. monthly savings over the last 3 months")
+                .font(.caption)
+                .foregroundStyle(AppColors.textSecondary)
+
+            HStack(spacing: 12) {
+                ForEach(points) { point in
+                    VStack(spacing: 6) {
+                        Text(point.label)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(AppColors.textSecondary)
+
+                        Text("\(point.amount >= 0 ? "" : "-")\(currencySymbol)\(abs(point.amount).formatted(.number.precision(.fractionLength(0))))")
+                            .font(.system(size: 15, weight: .bold).monospacedDigit())
+                            .foregroundStyle(point.amount >= 0 ? AppColors.textPrimary : AppColors.expense)
+                            .minimumScaleFactor(0.7)
+                            .lineLimit(1)
+
+                        Capsule()
+                            .fill(point.amount >= 0 ? AppColors.accent.opacity(0.25) : AppColors.expense.opacity(0.2))
+                            .frame(height: 4)
+                            .overlay(
+                                GeometryReader { geo in
+                                    let maxVal = points.map { abs($0.amount) }.max() ?? 1
+                                    let ratio = maxVal > 0
+                                        ? CGFloat(truncating: (abs(point.amount) / maxVal) as NSDecimalNumber)
+                                        : 0
+                                    Capsule()
+                                        .fill(point.amount >= 0 ? AppColors.accent : AppColors.expense)
+                                        .frame(width: geo.size.width * ratio)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .background(AppColors.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+
+            if avgMonthly == 0 {
+                Text("Not enough paid transactions to generate a forecast yet.")
+                    .font(.caption)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 4)
+            }
+        }
+        .padding()
+        .appCard()
     }
 }
 

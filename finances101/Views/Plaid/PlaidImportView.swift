@@ -188,7 +188,6 @@ struct PlaidImportView: View {
         let selected = transactions.filter(\.isSelected)
         importedCount = selected.count
 
-        var netImported: Decimal = 0
         for tx in selected {
             if tx.isExpense {
                 let entry = ExpenseEntry(
@@ -200,7 +199,6 @@ struct PlaidImportView: View {
                     status: .paid
                 )
                 modelContext.insert(entry)
-                netImported -= tx.amount
             } else {
                 let entry = IncomeEntry(
                     title: tx.name,
@@ -211,20 +209,28 @@ struct PlaidImportView: View {
                     category: tx.category
                 )
                 modelContext.insert(entry)
-                netImported += tx.amount
             }
         }
 
-        // Sync initialBalance from the depository account so the displayed balance
-        // matches the real bank balance: initialBalance = bankBalance - netImported
-        // This makes: actualBalance = initialBalance + netImported = bankBalance ✓
-        if !depositoryAccounts.isEmpty,
-           let currentBalance = depositoryAccounts.compactMap({ $0.balances.current }).first,
-           let appSettings = settings.first {
-            let bankBalance = Decimal(currentBalance)
-            appSettings.initialBalance = bankBalance - netImported
+        // Sync balance using ALL paid transactions (including just-inserted ones).
+        // BalanceCalculator: actualBalance = initialBalance + sumPaidIncome - sumPaidExpenses - charityPaid
+        // We want actualBalance = bankCashBalance (sum of ALL checking + savings accounts)
+        // So: initialBalance = bankCashBalance - sumPaidIncome + sumPaidExpenses
+        // (charity is excluded since Plaid doesn't track it)
+        if !depositoryAccounts.isEmpty, let appSettings = settings.first {
+            let bankCashBalance = totalDepositoryBalance
+            let allPaidIncome = (try? modelContext.fetch(FetchDescriptor<IncomeEntry>()))?
+                .filter { $0.status == .paid }
+                .reduce(0) { $0 + $1.amount } ?? 0
+            let allPaidExpenses = (try? modelContext.fetch(FetchDescriptor<ExpenseEntry>()))?
+                .filter { $0.status == .paid }
+                .reduce(0) { $0 + $1.amount } ?? 0
+            appSettings.initialBalance = bankCashBalance - allPaidIncome + allPaidExpenses
+            appSettings.plaidCashBalance = bankCashBalance
+            appSettings.plaidCreditBalance = totalCreditOwed
+            appSettings.plaidSyncedAt = Date()
             appSettings.updatedAt = Date()
-            syncedBalance = bankBalance
+            syncedBalance = bankCashBalance
         }
 
         modelContext.saveWithLogging()

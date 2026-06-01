@@ -15,9 +15,12 @@ final class StatusUpdateManager {
         if let incomes = try? modelContext.fetch(incomeDescriptor) {
             for income in incomes {
                 let payoutDay = Calendar.current.startOfDay(for: income.payoutDate)
-                if income.status != .paid && payoutDay <= today {
-                    income.status = .paid
-                    CharityManager.createAccrualIfNeeded(for: income, in: modelContext)
+                // Only auto-mark as paid if actively expected (not if manually set to delayed/cancelled)
+                if income.status == .planned || income.status == .earned {
+                    if payoutDay <= today {
+                        income.status = .paid
+                        CharityManager.createAccrualIfNeeded(for: income, in: modelContext)
+                    }
                 }
             }
         }

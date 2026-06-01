@@ -1,9 +1,15 @@
 import SwiftUI
+import SwiftData
 
 struct BalanceBreakdownSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Query private var settings: [AppSettings]
     let balanceData: BalanceData
     let symbol: String
+
+    private var hasPlaidData: Bool {
+        settings.first?.plaidSyncedAt != nil && (settings.first?.plaidCashBalance ?? 0) > 0
+    }
     
     private var reservedAmount: Decimal {
         balanceData.charityOwed + balanceData.plannedOutflow
@@ -18,6 +24,7 @@ struct BalanceBreakdownSheet: View {
             ScrollView {
                 VStack(spacing: 24) {
                     totalSection
+                    if hasPlaidData { bankAccountsSection }
                     breakdownSection
                     projectionSection
                 }
@@ -51,6 +58,57 @@ struct BalanceBreakdownSheet: View {
         .appCard()
     }
     
+    private var bankAccountsSection: some View {
+        let s = settings.first!
+        let cash = s.plaidCashBalance ?? 0
+        let credit = s.plaidCreditBalance ?? 0
+        let syncedAt = s.plaidSyncedAt.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? ""
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Bank Accounts")
+                    .font(.headline)
+                Spacer()
+                Text("Synced \(syncedAt)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            BreakdownRow(
+                title: "Cash",
+                subtitle: "Checking + Savings",
+                amount: cash,
+                symbol: symbol,
+                icon: "building.columns.fill",
+                color: AppColors.income
+            )
+
+            if credit > 0 {
+                BreakdownRow(
+                    title: "Credit Card Debt",
+                    subtitle: "Balance owed — not included in cash",
+                    amount: credit,
+                    symbol: symbol,
+                    icon: "creditcard.fill",
+                    color: AppColors.expense
+                )
+
+                Divider()
+
+                HStack {
+                    Text("Net (Cash − Credit)")
+                        .font(.subheadline).fontWeight(.medium)
+                    Spacer()
+                    let net = cash - credit
+                    Text("\(net >= 0 ? "" : "-")\(symbol)\(abs(net).formatted())")
+                        .font(.subheadline).fontWeight(.bold)
+                        .foregroundStyle(net >= 0 ? AppColors.income : AppColors.expense)
+                }
+            }
+        }
+        .padding()
+        .appCard()
+    }
+
     private var breakdownSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Breakdown")

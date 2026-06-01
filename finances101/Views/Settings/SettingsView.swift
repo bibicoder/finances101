@@ -1,10 +1,14 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var settings: [AppSettings]
-    
+    @Query private var expenses: [ExpenseEntry]
+    @Query private var debts: [Debt]
+    @Query private var subscriptions: [Subscription]
+
     @Environment(UserRoleManager.self) private var roleManager
     @FocusState private var isBalanceFieldFocused: Bool
     @State private var initialBalance: String = ""
@@ -14,7 +18,7 @@ struct SettingsView: View {
     @State private var currency: String = "USD"
     @State private var currencySymbol: String = "$"
     @State private var showAdvanced = false
-    
+
     @State private var showExportOptions = false
     @State private var showResetAlert = false
     @State private var showPINSetup = false
@@ -25,7 +29,15 @@ struct SettingsView: View {
     @State private var showImportTransactions = false
     @State private var showDisconnectBankAlert = false
     @State private var showCharityView = false
+    @State private var showCSVImport = false
     @State private var plaidManager = PlaidManager.shared
+
+    // Notifications
+    @State private var notificationsEnabled = NotificationManager.shared.isEnabled
+    @State private var notifyPayments = NotificationManager.shared.notifyPayments
+    @State private var notifyDebts = NotificationManager.shared.notifyDebts
+    @State private var notifySubscriptions = NotificationManager.shared.notifySubscriptions
+    @State private var notifAuthStatus: UNAuthorizationStatus = .notDetermined
     
     private let currencies = [
         ("USD", "$"),
@@ -46,6 +58,7 @@ struct SettingsView: View {
             Form {
                 charitySection
                 currencySection
+                notificationsSection
                 if roleManager.canEdit {
                     bankSection
                     familyViewSection
@@ -68,6 +81,9 @@ struct SettingsView: View {
             }
             .onAppear {
                 loadSettings()
+                NotificationManager.shared.checkAuthorizationStatus { status in
+                    notifAuthStatus = status
+                }
             }
             .onChange(of: initialBalance) { _, _ in saveSettings() }
             .onChange(of: charityPercentage) { _, _ in saveSettings() }
@@ -75,8 +91,11 @@ struct SettingsView: View {
             .onChange(of: charityFixedAmount) { _, _ in saveSettings() }
             .onChange(of: currency) { _, _ in saveSettings() }
             .confirmationDialog("Export Format", isPresented: $showExportOptions) {
-                Button("JSON Backup") { exportJSON() }
+                Button("PDF Report (this month)") { exportPDF(period: .thisMonth) }
+                Button("PDF Report (last 3 months)") { exportPDF(period: .last3Months) }
+                Button("PDF Report (this year)") { exportPDF(period: .thisYear) }
                 Button("CSV Spreadsheet") { exportCSV() }
+                Button("JSON Backup") { exportJSON() }
                 Button("Cancel", role: .cancel) {}
             }
             .alert("Reset All Data?", isPresented: $showResetAlert) {
@@ -105,6 +124,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showImportTransactions) {
                 PlaidImportView()
+            }
+            .sheet(isPresented: $showCSVImport) {
+                CSVImportView()
             }
             .alert("Disconnect Bank?", isPresented: $showDisconnectBankAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -179,6 +201,65 @@ struct SettingsView: View {
         }
     }
     
+    private var notificationsSection: some View {
+        Section {
+            if notifAuthStatus == .denied {
+                HStack {
+                    Image(systemName: "bell.slash.fill")
+                        .foregroundStyle(AppColors.warning)
+                    Text("Notifications blocked in iOS Settings")
+                        .font(.subheadline)
+                        .foregroundStyle(AppColors.warning)
+                }
+            } else {
+                Toggle(isOn: $notificationsEnabled) {
+                    Label("Enable Notifications", systemImage: "bell.fill")
+                }
+                .onChange(of: notificationsEnabled) { _, enabled in
+                    NotificationManager.shared.isEnabled = enabled
+                    if enabled && notifAuthStatus == .notDetermined {
+                        NotificationManager.shared.requestAuthorization { granted in
+                            notifAuthStatus = granted ? .authorized : .denied
+                            if granted {
+                                NotificationManager.shared.scheduleAll(
+                                    expenses: expenses, debts: debts, subscriptions: subscriptions
+                                )
+                            }
+                        }
+                    } else {
+                        NotificationManager.shared.scheduleAll(
+                            expenses: expenses, debts: debts, subscriptions: subscriptions
+                        )
+                    }
+                }
+
+                if notificationsEnabled {
+                    Toggle("Upcoming payments (1 day before)", isOn: $notifyPayments)
+                        .onChange(of: notifyPayments) { _, v in
+                            NotificationManager.shared.notifyPayments = v
+                            NotificationManager.shared.scheduleAll(expenses: expenses, debts: debts, subscriptions: subscriptions)
+                        }
+                    Toggle("Debt target dates", isOn: $notifyDebts)
+                        .onChange(of: notifyDebts) { _, v in
+                            NotificationManager.shared.notifyDebts = v
+                            NotificationManager.shared.scheduleAll(expenses: expenses, debts: debts, subscriptions: subscriptions)
+                        }
+                    Toggle("Subscription renewals", isOn: $notifySubscriptions)
+                        .onChange(of: notifySubscriptions) { _, v in
+                            NotificationManager.shared.notifySubscriptions = v
+                            NotificationManager.shared.scheduleAll(expenses: expenses, debts: debts, subscriptions: subscriptions)
+                        }
+                }
+            }
+        } header: {
+            Text("Notifications")
+        } footer: {
+            if notifAuthStatus != .denied {
+                Text("Reminders fire at 9:00 AM on the scheduled day.")
+            }
+        }
+    }
+
     private var currencySection: some View {
         Section("Currency") {
             Picker("Currency", selection: $currency) {
@@ -196,12 +277,24 @@ struct SettingsView: View {
     
     private var dataSection: some View {
         Section("Data") {
+            NavigationLink {
+                CategoryRulesView()
+            } label: {
+                Label("Auto-Categorization Rules", systemImage: "tag.fill")
+            }
+
+            Button {
+                showCSVImport = true
+            } label: {
+                Label("Import CSV from Bank", systemImage: "arrow.down.doc.fill")
+            }
+
             Button {
                 showExportOptions = true
             } label: {
                 Label("Export Data", systemImage: "square.and.arrow.up")
             }
-            
+
             Button(role: .destructive) {
                 showResetAlert = true
             } label: {
@@ -268,6 +361,24 @@ struct SettingsView: View {
                     showPINSetup = true
                 }
             }
+
+            Divider()
+
+            HStack {
+                Image(systemName: roleManager.deviceRole == .familyMember ? "heart.fill" : "person.fill.checkmark")
+                    .foregroundStyle(roleManager.deviceRole == .familyMember ? AppColors.charity : AppColors.primaryDeep)
+                Text("This Device")
+                Spacer()
+                Text(roleManager.deviceRole == .familyMember ? "Family Member" : "Owner")
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+            }
+
+            Button("Change Device Role") {
+                roleManager.completeDeviceSetup(as: .unset)
+            }
+            .foregroundStyle(AppColors.warning)
+
         } header: {
             Text("Access Control")
         } footer: {
@@ -337,6 +448,33 @@ struct SettingsView: View {
         modelContext.saveWithLogging()
     }
     
+    private enum PDFPeriod {
+        case thisMonth, last3Months, thisYear
+        var dateRange: (Date, Date) {
+            let cal = Calendar.current
+            let now = Date()
+            switch self {
+            case .thisMonth:
+                let start = cal.date(from: cal.dateComponents([.year, .month], from: now)) ?? now
+                return (start, now)
+            case .last3Months:
+                let start = cal.date(byAdding: .month, value: -3, to: now) ?? now
+                return (start, now)
+            case .thisYear:
+                let start = cal.date(from: cal.dateComponents([.year], from: now)) ?? now
+                return (start, now)
+            }
+        }
+    }
+
+    private func exportPDF(period: PDFPeriod) {
+        let exportManager = ExportManager(modelContext: modelContext)
+        let (start, end) = period.dateRange
+        if let url = exportManager.exportToPDF(startDate: start, endDate: end) {
+            shareFile(url: url)
+        }
+    }
+
     private func exportJSON() {
         let exportManager = ExportManager(modelContext: modelContext)
         if let url = exportManager.exportToJSON() {
