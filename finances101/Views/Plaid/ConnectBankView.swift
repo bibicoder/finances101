@@ -13,7 +13,7 @@ struct ConnectBankView: View {
 
                 Image(systemName: "building.columns.fill")
                     .font(.system(size: 72))
-                    .foregroundStyle(AppColors.primaryLight)
+                    .foregroundStyle(AppColors.primaryDeep)
 
                 VStack(spacing: 10) {
                     Text("Connect Your Bank")
@@ -51,7 +51,7 @@ struct ConnectBankView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(AppColors.primaryLight)
+                        .background(AppColors.primaryDeep)
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                     }

@@ -52,7 +52,7 @@ struct SpendingView: View {
                 }
                 .padding()
             }
-            .background(AppColors.background)
+            .screenBackground()
             .navigationTitle("Spending")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -277,19 +277,21 @@ struct MetricCard: View {
     let symbol: String
     let color: Color
     var isWide: Bool = false
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(AppColors.textSecondary)
+
             Text("\(symbol)\(amount.formatted())")
-                .font(AppFonts.cardAmount())
+                .font(.system(size: 22, weight: .bold).monospacedDigit())
                 .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
+        .padding(14)
         .appCard()
     }
 }
@@ -297,36 +299,36 @@ struct MetricCard: View {
 struct TransactionRow: View {
     let expense: ExpenseEntry
     let symbol: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             let category = CategoryManager.expenseCategory(for: expense.category)
-            
-            Image(systemName: category.icon)
-                .font(.title3)
-                .foregroundStyle(category.color)
+
+            RoundedRectangle(cornerRadius: 10)
+                .fill(AppColors.categoryBg(expense.category))
                 .frame(width: 36, height: 36)
-                .background(category.color.opacity(0.1))
-                .clipShape(Circle())
-            
+                .overlay(
+                    Image(systemName: category.icon)
+                        .font(.system(size: 15))
+                        .foregroundStyle(AppColors.primaryDeep)
+                )
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(expense.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.textPrimary)
                 Text(expense.dueDate, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(AppColors.textSecondary)
             }
-            
+
             Spacer()
-            
+
             Text("-\(symbol)\(expense.amount.formatted())")
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                .font(.system(size: 14, weight: .bold).monospacedDigit())
                 .foregroundStyle(AppColors.expense)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 }
 

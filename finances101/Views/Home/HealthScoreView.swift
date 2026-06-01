@@ -16,7 +16,7 @@ struct HealthScoreView: View {
                 }
                 .padding()
             }
-            .background(Color(.systemGroupedBackground))
+            .screenBackground()
             .navigationTitle("Financial Health")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -101,7 +101,7 @@ struct HealthScoreView: View {
                     icon: "shield.fill",
                     title: "Emergency Buffer",
                     score: score.bufferScore,
-                    color: AppColors.primaryLight,
+                    color: AppColors.primaryDeep,
                     detail: bufferDetail
                 )
                 pillarCard(

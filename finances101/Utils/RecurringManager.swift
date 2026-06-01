@@ -9,67 +9,60 @@ final class RecurringManager {
     }
     
     func generateUpcomingRecurring(horizonDays: Int = 90) {
-        let descriptor = FetchDescriptor<RecurringTemplate>()
-        guard let templates = try? modelContext.fetch(descriptor) else { return }
-        
+        guard let templates = try? modelContext.fetch(FetchDescriptor<RecurringTemplate>()) else { return }
         let activeTemplates = templates.filter { $0.isActive }
+        guard !activeTemplates.isEmpty else { return }
+
         let endDate = Calendar.current.date(byAdding: .day, value: horizonDays, to: Date()) ?? Date()
-        
+        let allIncomes  = (try? modelContext.fetch(FetchDescriptor<IncomeEntry>())) ?? []
+        let allExpenses = (try? modelContext.fetch(FetchDescriptor<ExpenseEntry>())) ?? []
+
         for template in activeTemplates {
-            generateFromTemplate(template, until: endDate)
+            generateFromTemplate(template, until: endDate, allIncomes: allIncomes, allExpenses: allExpenses)
         }
-        
+
         modelContext.saveWithLogging()
     }
-    
-    private func generateFromTemplate(_ template: RecurringTemplate, until endDate: Date) {
+
+    private func generateFromTemplate(_ template: RecurringTemplate, until endDate: Date, allIncomes: [IncomeEntry], allExpenses: [ExpenseEntry]) {
         let calendar = Calendar.current
         var currentDate = template.lastGeneratedDate ?? template.startDate
-        
+
         if currentDate < template.startDate {
             currentDate = template.startDate
         }
-        
+
         while currentDate <= endDate {
-            if let templateEndDate = template.endDate, currentDate > templateEndDate {
-                break
-            }
-            
-            if !entryExistsForDate(template: template, date: currentDate) {
+            if let templateEndDate = template.endDate, currentDate > templateEndDate { break }
+
+            if !entryExistsForDate(template: template, date: currentDate, allIncomes: allIncomes, allExpenses: allExpenses) {
                 createEntry(from: template, on: currentDate)
             }
-            
-            guard let nextDate = calendar.date(byAdding: .day, value: template.intervalDays, to: currentDate) else {
-                break
-            }
+
+            guard let nextDate = calendar.date(byAdding: .day, value: template.intervalDays, to: currentDate) else { break }
             currentDate = nextDate
         }
-        
+
         template.lastGeneratedDate = currentDate
     }
-    
-    private func entryExistsForDate(template: RecurringTemplate, date: Date) -> Bool {
+
+    private func entryExistsForDate(template: RecurringTemplate, date: Date, allIncomes: [IncomeEntry], allExpenses: [ExpenseEntry]) -> Bool {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
-        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? date
-        
+        let endOfDay   = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? date
+
         switch template.type {
         case .income:
-            let descriptor = FetchDescriptor<IncomeEntry>()
-            guard let incomes = try? modelContext.fetch(descriptor) else { return false }
-            return incomes.contains { income in
-                income.recurringTemplateId == template.id &&
-                income.payoutDate >= startOfDay &&
-                income.payoutDate < endOfDay
+            return allIncomes.contains {
+                $0.recurringTemplateId == template.id &&
+                $0.payoutDate >= startOfDay &&
+                $0.payoutDate < endOfDay
             }
-            
         case .expense:
-            let descriptor = FetchDescriptor<ExpenseEntry>()
-            guard let expenses = try? modelContext.fetch(descriptor) else { return false }
-            return expenses.contains { expense in
-                expense.recurringTemplateId == template.id &&
-                expense.dueDate >= startOfDay &&
-                expense.dueDate < endOfDay
+            return allExpenses.contains {
+                $0.recurringTemplateId == template.id &&
+                $0.dueDate >= startOfDay &&
+                $0.dueDate < endOfDay
             }
         }
     }

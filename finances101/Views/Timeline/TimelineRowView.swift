@@ -28,10 +28,14 @@ struct TimelineRowView: View {
     
     private var mainContent: some View {
         HStack(spacing: 12) {
-            Image(systemName: item.type.icon)
-                .font(.title2)
-                .foregroundStyle(item.type.color)
-                .frame(width: 36)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(iconBgColor)
+                .frame(width: 38, height: 38)
+                .overlay(
+                    Image(systemName: item.type.icon)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(item.type.color)
+                )
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
@@ -109,12 +113,21 @@ struct TimelineRowView: View {
         return "\(prefix)\(symbol)\(item.amount.formatted())"
     }
     
+    private var iconBgColor: Color {
+        switch item.type {
+        case .income:        return Color(hex: "DCFCE7")
+        case .expense:       return Color(hex: "FEE2E2")
+        case .charityAccrual: return Color(hex: "F3E8FF")
+        case .charityPayment: return Color(hex: "EDE9FE")
+        }
+    }
+
     private var statusColor: Color {
         switch item.status {
-        case "Paid", "Sent": return .green
-        case "Planned", "Pending": return .orange
-        case "Accrued": return .purple
-        default: return .secondary
+        case "Paid", "Sent":       return AppColors.income
+        case "Planned", "Pending": return AppColors.warning
+        case "Accrued":            return AppColors.charity
+        default:                   return AppColors.textSecondary
         }
     }
     

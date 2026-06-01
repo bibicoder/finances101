@@ -18,15 +18,35 @@ struct PlaidImportView: View {
     @Query private var settings: [AppSettings]
 
     @State private var transactions: [ImportTransaction] = []
+    @State private var accounts: [PlaidAccount] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var selectedDays = 30
     @State private var showDoneAlert = false
     @State private var importedCount = 0
+    @State private var syncedBalance: Decimal? = nil
 
     private var symbol: String { settings.first?.currencySymbol ?? "$" }
     private var selectedCount: Int { transactions.filter(\.isSelected).count }
     private var allSelected: Bool { selectedCount == transactions.count }
+
+    // Depository accounts (checking/savings) → real cash
+    private var depositoryAccounts: [PlaidAccount] {
+        accounts.filter { $0.type == "depository" }
+    }
+
+    // Credit accounts → debt, not cash
+    private var creditAccounts: [PlaidAccount] {
+        accounts.filter { $0.type == "credit" }
+    }
+
+    private var totalDepositoryBalance: Decimal {
+        depositoryAccounts.compactMap { $0.balances.current.map { Decimal($0) } }.reduce(0, +)
+    }
+
+    private var totalCreditOwed: Decimal {
+        creditAccounts.compactMap { $0.balances.current.map { Decimal($0) } }.reduce(0, +)
+    }
 
     var body: some View {
         NavigationStack {
@@ -34,7 +54,7 @@ struct PlaidImportView: View {
                 if isLoading {
                     VStack(spacing: 16) {
                         ProgressView()
-                        Text("Fetching transactions...")
+                        Text("Fetching from bank...")
                             .foregroundStyle(.secondary)
                     }
                 } else if let error = errorMessage {
@@ -49,7 +69,7 @@ struct PlaidImportView: View {
                             .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                } else if transactions.isEmpty {
+                } else if transactions.isEmpty && accounts.isEmpty {
                     ContentUnavailableView(
                         "No transactions",
                         systemImage: "list.bullet.rectangle",
@@ -78,12 +98,28 @@ struct PlaidImportView: View {
         .alert("Import Complete", isPresented: $showDoneAlert) {
             Button("Done") { dismiss() }
         } message: {
-            Text("\(importedCount) transactions added to your app.")
+            if let balance = syncedBalance {
+                Text("\(importedCount) transactions added. Balance synced to \(symbol)\(balance.formatted()) from your bank.")
+            } else {
+                Text("\(importedCount) transactions added.")
+            }
         }
     }
 
     private var transactionList: some View {
         List {
+            // Account balances section — shows real money vs debt
+            if !accounts.isEmpty {
+                Section("Your Accounts") {
+                    ForEach(depositoryAccounts, id: \.accountId) { account in
+                        AccountBalanceRow(account: account, symbol: symbol, isDebt: false)
+                    }
+                    ForEach(creditAccounts, id: \.accountId) { account in
+                        AccountBalanceRow(account: account, symbol: symbol, isDebt: true)
+                    }
+                }
+            }
+
             Section {
                 Picker("Period", selection: $selectedDays) {
                     Text("Last 30 days").tag(30)
@@ -92,16 +128,20 @@ struct PlaidImportView: View {
                 }
                 .onChange(of: selectedDays) { _, _ in Task { await load() } }
 
-                Button(allSelected ? "Deselect All" : "Select All") {
-                    let newValue = !allSelected
-                    for i in transactions.indices { transactions[i].isSelected = newValue }
+                if !transactions.isEmpty {
+                    Button(allSelected ? "Deselect All" : "Select All") {
+                        let newValue = !allSelected
+                        for i in transactions.indices { transactions[i].isSelected = newValue }
+                    }
+                    .font(.subheadline)
                 }
-                .font(.subheadline)
             }
 
-            Section("\(transactions.count) transactions • \(selectedCount) selected") {
-                ForEach($transactions) { $tx in
-                    ImportRow(transaction: $tx, symbol: symbol)
+            if !transactions.isEmpty {
+                Section("\(transactions.count) transactions • \(selectedCount) selected") {
+                    ForEach($transactions) { $tx in
+                        ImportRow(transaction: $tx, symbol: symbol)
+                    }
                 }
             }
         }
@@ -115,7 +155,12 @@ struct PlaidImportView: View {
         isLoading = true
         errorMessage = nil
         do {
-            let plaidTxs = try await PlaidService.fetchTransactions(accessToken: token, days: selectedDays)
+            async let fetchedAccounts = PlaidService.fetchAccounts(accessToken: token)
+            async let fetchedTxs = PlaidService.fetchTransactions(accessToken: token, days: selectedDays)
+
+            let (accs, plaidTxs) = try await (fetchedAccounts, fetchedTxs)
+            accounts = accs
+
             let fmt = DateFormatter()
             fmt.dateFormat = "yyyy-MM-dd"
 
@@ -143,6 +188,7 @@ struct PlaidImportView: View {
         let selected = transactions.filter(\.isSelected)
         importedCount = selected.count
 
+        var netImported: Decimal = 0
         for tx in selected {
             if tx.isExpense {
                 let entry = ExpenseEntry(
@@ -154,6 +200,7 @@ struct PlaidImportView: View {
                     status: .paid
                 )
                 modelContext.insert(entry)
+                netImported -= tx.amount
             } else {
                 let entry = IncomeEntry(
                     title: tx.name,
@@ -164,7 +211,20 @@ struct PlaidImportView: View {
                     category: tx.category
                 )
                 modelContext.insert(entry)
+                netImported += tx.amount
             }
+        }
+
+        // Sync initialBalance from the depository account so the displayed balance
+        // matches the real bank balance: initialBalance = bankBalance - netImported
+        // This makes: actualBalance = initialBalance + netImported = bankBalance ✓
+        if !depositoryAccounts.isEmpty,
+           let currentBalance = depositoryAccounts.compactMap({ $0.balances.current }).first,
+           let appSettings = settings.first {
+            let bankBalance = Decimal(currentBalance)
+            appSettings.initialBalance = bankBalance - netImported
+            appSettings.updatedAt = Date()
+            syncedBalance = bankBalance
         }
 
         modelContext.saveWithLogging()
@@ -185,6 +245,54 @@ struct PlaidImportView: View {
         }
     }
 }
+
+// MARK: - Account Balance Row
+
+private struct AccountBalanceRow: View {
+    let account: PlaidAccount
+    let symbol: String
+    let isDebt: Bool
+
+    private var balance: Decimal {
+        account.balances.current.map { Decimal($0) } ?? 0
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: isDebt ? "creditcard.fill" : "building.columns.fill")
+                .font(.subheadline)
+                .foregroundStyle(isDebt ? AppColors.expense : AppColors.income)
+                .frame(width: 32, height: 32)
+                .background((isDebt ? AppColors.expense : AppColors.income).opacity(0.1))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(account.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(isDebt ? "Credit card — balance owed" : "Checking / Savings")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(isDebt ? "-" : "")\(symbol)\(balance.formatted())")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(isDebt ? AppColors.expense : AppColors.income)
+                if let available = account.balances.available {
+                    Text("avail: \(symbol)\(Decimal(available).formatted())")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Transaction Row
 
 private struct ImportRow: View {
     @Binding var transaction: ImportTransaction

@@ -14,14 +14,14 @@ struct PINEntryView: View {
         NavigationStack {
             VStack(spacing: 48) {
                 VStack(spacing: 12) {
-                    Image(systemName: "heart.fill")
+                    Image(systemName: "lock.shield.fill")
                         .font(.system(size: 48))
-                        .foregroundStyle(AppColors.charity)
+                        .foregroundStyle(AppColors.primaryDeep)
 
-                    Text("Family View")
+                    Text("My View")
                         .font(.title2.bold())
 
-                    Text("Enter the family PIN")
+                    Text("Enter your PIN to access full data")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -51,7 +51,7 @@ struct PINEntryView: View {
 
     private func checkPIN() {
         if KeychainManager.verifyWifePIN(enteredPIN) {
-            roleManager.unlockAsViewer()
+            roleManager.unlockAsOwner()
             dismiss()
         } else {
             withAnimation(.default) {

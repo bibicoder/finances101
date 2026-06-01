@@ -26,7 +26,7 @@ struct AnalyticsView: View {
                 }
                 .padding()
             }
-            .background(AppColors.background)
+            .screenBackground()
             .navigationTitle("Analytics")
         }
     }
@@ -426,42 +426,49 @@ struct CategorySpendingRow: View {
     let amount: Decimal
     let percentage: Double
     let symbol: String
-    
+
     var body: some View {
         let cat = CategoryManager.expenseCategory(for: category)
-        
+
         HStack(spacing: 12) {
-            Image(systemName: cat.icon)
-                .font(.title3)
-                .foregroundStyle(cat.color)
-                .frame(width: 32)
-            
-            VStack(alignment: .leading, spacing: 2) {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(AppColors.categoryBg(category))
+                .frame(width: 36, height: 36)
+                .overlay(
+                    Image(systemName: cat.icon)
+                        .font(.system(size: 15))
+                        .foregroundStyle(AppColors.primaryDeep)
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text(category)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+
                 GeometryReader { geometry in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(cat.color.opacity(0.3))
-                        .frame(width: geometry.size.width * (percentage / 100), height: 4)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(AppColors.divider).frame(height: 5)
+                        Capsule()
+                            .fill(LinearGradient(colors: [AppColors.primaryDeep, Color(hex: "A78BFA")],
+                                                 startPoint: .leading, endPoint: .trailing))
+                            .frame(width: geometry.size.width * (percentage / 100), height: 5)
+                    }
                 }
-                .frame(height: 4)
+                .frame(height: 5)
             }
-            
+
             Spacer()
-            
+
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(symbol)\(amount.formatted())")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                
+                    .font(.system(size: 13, weight: .bold).monospacedDigit())
+                    .foregroundStyle(AppColors.textPrimary)
                 Text("\(Int(percentage))%")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(AppColors.textSecondary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
     }
 }
 

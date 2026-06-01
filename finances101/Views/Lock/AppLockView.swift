@@ -24,10 +24,10 @@ struct AppLockView: View {
 
                 VStack(spacing: 16) {
                     Button {
-                        roleManager.unlockAsOwner()
+                        showPINEntry = true
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "person.fill")
+                            Image(systemName: "lock.fill")
                             Text("My View")
                                 .fontWeight(.semibold)
                         }
@@ -39,7 +39,7 @@ struct AppLockView: View {
                     }
 
                     Button {
-                        showPINEntry = true
+                        roleManager.unlockAsViewer()
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "heart.fill")

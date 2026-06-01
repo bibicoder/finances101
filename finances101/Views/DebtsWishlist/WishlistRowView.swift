@@ -6,7 +6,8 @@ struct WishlistRowView: View {
     let item: WishlistItem
     let symbol: String
     let safeToSpend: Decimal
-    
+    var onPurchase: (() -> Void)? = nil
+
     @State private var showScheduleSheet = false
     @State private var showEditSheet = false
     @State private var showDeleteConfirm = false
@@ -148,7 +149,7 @@ struct WishlistRowView: View {
     
     private func markAsBought() {
         item.status = .bought
-        
+
         let expense = ExpenseEntry(
             title: "Wishlist: \(item.title)",
             amount: item.amount,
@@ -158,9 +159,10 @@ struct WishlistRowView: View {
             status: .paid
         )
         modelContext.insert(expense)
-        
+
         modelContext.saveWithLogging()
         HapticManager.success()
+        onPurchase?()
     }
     
     private func deleteItem() {

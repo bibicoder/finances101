@@ -28,7 +28,7 @@ struct TimelineView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 horizonPicker
-                
+
                 if timelineItems.isEmpty {
                     ContentUnavailableView(
                         "No transactions",
@@ -39,7 +39,7 @@ struct TimelineView: View {
                     timelineList
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .screenBackground()
             .navigationTitle("Timeline")
             .sheet(item: $selectedIncome) { income in
                 EditIncomeSheet(income: income)
@@ -116,13 +116,17 @@ struct TimelineView: View {
     }
     
     private var timelineList: some View {
-        List {
-            ForEach(Array(timelineItems.enumerated()), id: \.element.id) { index, item in
+        let items = timelineItems
+        let balances = precomputeRunningBalances(for: items)
+        return List {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 TimelineRowView(
                     item: item,
-                    runningBalance: calculateRunningBalance(upTo: index),
+                    runningBalance: balances[index],
                     symbol: currencySymbol
                 )
+                .listRowBackground(AppColors.surface)
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                 .contextMenu {
                     if roleManager.canEdit {
                         if item.type == .income {
@@ -177,32 +181,23 @@ struct TimelineView: View {
         HapticManager.success()
     }
     
-    private func calculateRunningBalance(upTo index: Int) -> Decimal {
-        var balance = initialBalance
+    private func precomputeRunningBalances(for items: [TimelineItem]) -> [Decimal] {
         let today = Calendar.current.startOfDay(for: Date())
-        
-        for i in 0...index {
-            let item = timelineItems[i]
-            let itemDay = Calendar.current.startOfDay(for: item.date)
-            let isFuture = itemDay > today
-            
+        var balance = initialBalance
+        return items.map { item in
+            let isFuture = Calendar.current.startOfDay(for: item.date) > today
             switch item.type {
             case .income:
-                if item.status == "Paid" || isFuture {
-                    balance += item.amount
-                }
+                if item.status == "Paid" || isFuture { balance += item.amount }
             case .expense:
-                if item.status == "Paid" || isFuture {
-                    balance -= item.amount
-                }
+                if item.status == "Paid" || isFuture { balance -= item.amount }
             case .charityPayment:
                 balance -= item.amount
             case .charityAccrual:
                 break
             }
+            return balance
         }
-        
-        return balance
     }
 }
 
@@ -224,10 +219,10 @@ enum TimelineItemType {
     
     var color: Color {
         switch self {
-        case .income: return .green
-        case .expense: return .orange
-        case .charityAccrual: return .purple.opacity(0.6)
-        case .charityPayment: return .purple
+        case .income:        return AppColors.income
+        case .expense:       return AppColors.expense
+        case .charityAccrual: return AppColors.charity.opacity(0.7)
+        case .charityPayment: return AppColors.charity
         }
     }
     

@@ -44,7 +44,7 @@ struct CharityView: View {
                 }
                 .padding()
             }
-            .background(Color(.systemGroupedBackground))
+            .screenBackground()
             .navigationTitle("Charity")
             .toolbar {
                 if roleManager.canEdit {
@@ -64,74 +64,73 @@ struct CharityView: View {
     }
     
     private var summarySection: some View {
-        VStack(spacing: 16) {
-            VStack(spacing: 8) {
+        VStack(spacing: 14) {
+            // Hero card
+            VStack(spacing: 6) {
                 Text("Current Obligation")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.75))
                 Text("\(currencySymbol)\(currentOwed.formatted())")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(currentOwed > 0 ? .purple : .green)
+                    .font(.system(size: 42, weight: .heavy).monospacedDigit())
+                    .foregroundStyle(.white)
+                Text(currentOwed > 0 ? "Needs to be paid" : "All clear ✓")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(currentOwed > 0 ? Color(hex: "FCA5A5") : Color(hex: "86EFAC"))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+            .padding(.vertical, 28)
+            .background(
+                LinearGradient(
+                    colors: [AppColors.charity, Color(hex: "7C3AED")],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
             )
-            
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(color: AppColors.charity.opacity(0.3), radius: 16, x: 0, y: 6)
+
+            // Stat boxes
             HStack(spacing: 12) {
-                StatBox(
-                    title: "Total Accrued",
-                    value: "\(currencySymbol)\(totalAccrued.formatted())",
-                    color: .purple.opacity(0.7)
-                )
-                
-                StatBox(
-                    title: "Total Paid",
-                    value: "\(currencySymbol)\(totalPaid.formatted())",
-                    color: .green
-                )
+                StatBox(title: "Total Accrued",
+                        value: "\(currencySymbol)\(totalAccrued.formatted())",
+                        color: AppColors.charity)
+                StatBox(title: "Total Paid",
+                        value: "\(currencySymbol)\(totalPaid.formatted())",
+                        color: AppColors.income)
             }
-            
+
             if currentOwed > 0 && roleManager.canEdit {
                 suggestedPaymentCard
             }
         }
     }
-    
+
     private var suggestedPaymentCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            HStack(spacing: 8) {
                 Image(systemName: "lightbulb.fill")
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(AppColors.warning)
                 Text("Suggested Payment")
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppColors.textPrimary)
             }
-            
             Text("Consider sending \(currencySymbol)\(suggestedPayment.formatted()) this week")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            
+                .font(.system(size: 13))
+                .foregroundStyle(AppColors.textSecondary)
             Button {
                 showAddPayment = true
             } label: {
                 Text("Make Payment")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.purple)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(AppColors.primaryDeep)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
             }
+            .buttonStyle(.plain)
         }
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding(16)
+        .appCard()
     }
     
     private var segmentedHistorySection: some View {
@@ -212,21 +211,21 @@ struct StatBox: View {
     let title: String
     let value: String
     let color: Color
-    
+
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 5) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(AppColors.textSecondary)
             Text(value)
-                .font(.headline)
-                .fontWeight(.semibold)
+                .font(.system(size: 16, weight: .bold).monospacedDigit())
                 .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(14)
+        .appCard()
     }
 }
 

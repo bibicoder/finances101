@@ -120,7 +120,7 @@ struct SubscriptionsView: View {
                     .foregroundStyle(.secondary)
                 Text("\(active.count)")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppColors.primaryLight)
+                    .foregroundStyle(AppColors.primaryDeep)
             }
             .frame(maxWidth: .infinity)
         }

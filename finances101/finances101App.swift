@@ -43,6 +43,7 @@ struct finances101App: App {
                 }
             }
             .environment(roleManager)
+            .preferredColorScheme(.light)
         }
         .modelContainer(sharedModelContainer)
     }

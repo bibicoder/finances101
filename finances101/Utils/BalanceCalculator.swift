@@ -10,33 +10,26 @@ struct BalanceData {
 }
 
 final class BalanceCalculator {
-    private let modelContext: ModelContext
-    private var cachedIncomes: [IncomeEntry]?
-    private var cachedExpenses: [ExpenseEntry]?
-    private var cachedAccruals: [CharityAccrual]?
-    private var cachedPayments: [CharityPayment]?
+    private var cachedIncomes: [IncomeEntry]
+    private var cachedExpenses: [ExpenseEntry]
+    private var cachedAccruals: [CharityAccrual]
+    private var cachedPayments: [CharityPayment]
     private var cachedSettings: AppSettings?
-    
+
     init(modelContext: ModelContext) {
-        self.modelContext = modelContext
-        loadData()
+        cachedIncomes  = (try? modelContext.fetch(FetchDescriptor<IncomeEntry>())) ?? []
+        cachedExpenses = (try? modelContext.fetch(FetchDescriptor<ExpenseEntry>())) ?? []
+        cachedAccruals = (try? modelContext.fetch(FetchDescriptor<CharityAccrual>())) ?? []
+        cachedPayments = (try? modelContext.fetch(FetchDescriptor<CharityPayment>())) ?? []
+        cachedSettings = (try? modelContext.fetch(FetchDescriptor<AppSettings>()))?.first
     }
-    
-    private func loadData() {
-        let incomeDescriptor = FetchDescriptor<IncomeEntry>()
-        cachedIncomes = try? modelContext.fetch(incomeDescriptor)
-        
-        let expenseDescriptor = FetchDescriptor<ExpenseEntry>()
-        cachedExpenses = try? modelContext.fetch(expenseDescriptor)
-        
-        let accrualDescriptor = FetchDescriptor<CharityAccrual>()
-        cachedAccruals = try? modelContext.fetch(accrualDescriptor)
-        
-        let paymentDescriptor = FetchDescriptor<CharityPayment>()
-        cachedPayments = try? modelContext.fetch(paymentDescriptor)
-        
-        let settingsDescriptor = FetchDescriptor<AppSettings>()
-        cachedSettings = (try? modelContext.fetch(settingsDescriptor))?.first
+
+    init(incomes: [IncomeEntry], expenses: [ExpenseEntry], accruals: [CharityAccrual], payments: [CharityPayment], settings: AppSettings?) {
+        self.cachedIncomes  = incomes
+        self.cachedExpenses = expenses
+        self.cachedAccruals = accruals
+        self.cachedPayments = payments
+        self.cachedSettings = settings
     }
     
     func calculateAll() -> BalanceData {
@@ -84,55 +77,55 @@ final class BalanceCalculator {
     
     private func sumPaidIncome() -> Decimal {
         let now = Date()
-        return (cachedIncomes ?? [])
+        return cachedIncomes
             .filter { $0.status == .paid && $0.payoutDate <= now }
             .reduce(0) { $0 + $1.amount }
     }
-    
+
     private func sumIncomingIncome(before date: Date) -> Decimal {
         let now = Date()
-        return (cachedIncomes ?? [])
+        return cachedIncomes
             .filter { ($0.status == .earned || $0.status == .planned) && $0.payoutDate <= date && $0.payoutDate > now }
             .reduce(0) { $0 + $1.amount }
     }
-    
+
     private func sumIncomingIncome(from startDate: Date, to endDate: Date) -> Decimal {
-        (cachedIncomes ?? [])
+        cachedIncomes
             .filter { ($0.status == .earned || $0.status == .planned) && $0.payoutDate >= startDate && $0.payoutDate <= endDate }
             .reduce(0) { $0 + $1.amount }
     }
-    
+
     private func sumPaidExpenses() -> Decimal {
         let now = Date()
-        return (cachedExpenses ?? [])
+        return cachedExpenses
             .filter { $0.status == .paid && $0.dueDate <= now }
             .reduce(0) { $0 + $1.amount }
     }
-    
+
     private func sumPlannedExpenses(before date: Date) -> Decimal {
         let now = Date()
-        return (cachedExpenses ?? [])
+        return cachedExpenses
             .filter { $0.status == .planned && $0.dueDate <= date && $0.dueDate > now }
             .reduce(0) { $0 + $1.amount }
     }
-    
+
     private func sumPlannedExpenses(from startDate: Date, to endDate: Date) -> Decimal {
-        (cachedExpenses ?? [])
+        cachedExpenses
             .filter { $0.status == .planned && $0.dueDate >= startDate && $0.dueDate <= endDate }
             .reduce(0) { $0 + $1.amount }
     }
-    
+
     private func sumUpcomingMandatoryExpenses(before date: Date) -> Decimal {
-        (cachedExpenses ?? [])
+        cachedExpenses
             .filter { $0.status == .planned && $0.type == .mandatory && $0.dueDate <= date }
             .reduce(0) { $0 + $1.amount }
     }
-    
+
     private func sumCharityAccrued() -> Decimal {
-        (cachedAccruals ?? []).reduce(0) { $0 + $1.accruedAmount }
+        cachedAccruals.reduce(0) { $0 + $1.accruedAmount }
     }
-    
+
     private func sumCharityPaid() -> Decimal {
-        (cachedPayments ?? []).reduce(0) { $0 + $1.amount }
+        cachedPayments.reduce(0) { $0 + $1.amount }
     }
 }

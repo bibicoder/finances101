@@ -109,10 +109,12 @@ struct DebtRowView: View {
 struct DebtPaymentSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    
+
     let debt: Debt
     @State private var paymentAmount: String = ""
-    
+    @State private var confettiTrigger = 0
+    @State private var showCelebration = false
+
     var body: some View {
         NavigationStack {
             Form {
@@ -123,11 +125,11 @@ struct DebtPaymentSheet: View {
                         Text("$\(debt.remainingAmount.formatted())")
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     TextField("Payment Amount", text: $paymentAmount)
                         .keyboardType(.decimalPad)
                 }
-                
+
                 Section {
                     Button("Record Payment") {
                         recordPayment()
@@ -142,15 +144,41 @@ struct DebtPaymentSheet: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .overlay {
+                ConfettiView(trigger: $confettiTrigger)
+            }
+            .overlay(alignment: .top) {
+                if showCelebration {
+                    HStack(spacing: 12) {
+                        Image(systemName: "trophy.fill")
+                            .font(.title2)
+                            .foregroundStyle(.yellow)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Debt Crushed!")
+                                .font(.system(size: 16, weight: .bold))
+                            Text("You paid it off completely")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(16)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+                    .padding(.top, 60)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(duration: 0.5), value: showCelebration)
         }
         .presentationDetents([.medium])
     }
-    
+
     private func recordPayment() {
         guard let amount = Decimal(string: paymentAmount) else { return }
         let actualPayment = min(amount, debt.remainingAmount)
         debt.paidAmount += actualPayment
-        
+
         let expense = ExpenseEntry(
             title: "Debt Payment: \(debt.creditor)",
             amount: actualPayment,
@@ -161,10 +189,19 @@ struct DebtPaymentSheet: View {
             isDebtPayment: true
         )
         modelContext.insert(expense)
-        
         modelContext.saveWithLogging()
         HapticManager.success()
-        dismiss()
+
+        if debt.remainingAmount <= 0 {
+            confettiTrigger += 1
+            showCelebration = true
+            Task {
+                try? await Task.sleep(for: .seconds(2.2))
+                dismiss()
+            }
+        } else {
+            dismiss()
+        }
     }
 }
 

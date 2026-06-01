@@ -92,7 +92,7 @@ struct BudgetView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .screenBackground()
     }
 
     private var monthNavigator: some View {
@@ -122,7 +122,7 @@ struct BudgetView: View {
 
         return VStack(spacing: 12) {
             HStack(spacing: 0) {
-                summaryCell("Budget", value: "\(symbol)\(totalBudget.formatted(.number.precision(.fractionLength(0))))", color: AppColors.primaryLight)
+                summaryCell("Budget", value: "\(symbol)\(totalBudget.formatted(.number.precision(.fractionLength(0))))", color: AppColors.primaryDeep)
                 Divider().frame(height: 36)
                 summaryCell("Spent", value: "\(symbol)\(totalSpent.formatted(.number.precision(.fractionLength(0))))", color: overBudget ? AppColors.expense : .primary)
                 Divider().frame(height: 36)
@@ -132,7 +132,7 @@ struct BudgetView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(.systemFill))
+                        .fill(Color(hex: "E4DAFF"))
                         .frame(height: 10)
                     RoundedRectangle(cornerRadius: 6)
                         .fill(progressColor(pct: usedPct))

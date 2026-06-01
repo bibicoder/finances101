@@ -24,6 +24,7 @@ struct SettingsView: View {
     @State private var showConnectBank = false
     @State private var showImportTransactions = false
     @State private var showDisconnectBankAlert = false
+    @State private var showCharityView = false
     @State private var plaidManager = PlaidManager.shared
     
     private let currencies = [
@@ -53,6 +54,9 @@ struct SettingsView: View {
                 }
                 aboutSection
             }
+            .navigationDestination(isPresented: $showCharityView) {
+                CharityView()
+            }
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -81,7 +85,7 @@ struct SettingsView: View {
             } message: {
                 Text("This will delete all your data. This cannot be undone.")
             }
-            .alert("Remove Family PIN?", isPresented: $showRemovePINAlert) {
+            .alert("Remove My View PIN?", isPresented: $showRemovePINAlert) {
                 Button("Cancel", role: .cancel) {}
                 Button("Remove", role: .destructive) {
                     KeychainManager.deleteWifePIN()
@@ -89,7 +93,7 @@ struct SettingsView: View {
                     HapticManager.success()
                 }
             } message: {
-                Text("Family View will no longer require a PIN.")
+                Text("My View will be accessible without a PIN.")
             }
             .sheet(isPresented: $showPINSetup, onDismiss: {
                 pinExists = KeychainManager.hasWifePIN()
@@ -145,6 +149,13 @@ struct SettingsView: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 100)
                 }
+            }
+
+            Button {
+                showCharityView = true
+            } label: {
+                Label("Charity History & Payments", systemImage: "heart.text.square.fill")
+                    .foregroundStyle(AppColors.charity)
             }
         } header: {
             Text("Charity")
@@ -203,7 +214,7 @@ struct SettingsView: View {
         Section {
             HStack {
                 Image(systemName: "building.columns.fill")
-                    .foregroundStyle(AppColors.primaryLight)
+                    .foregroundStyle(AppColors.primaryDeep)
                 Text("Bank Account")
                 Spacer()
                 Text(plaidManager.isConnected ? plaidManager.connectedBankName : "Not connected")
@@ -236,9 +247,9 @@ struct SettingsView: View {
     private var familyViewSection: some View {
         Section {
             HStack {
-                Image(systemName: "heart.fill")
-                    .foregroundStyle(AppColors.charity)
-                Text("Family View PIN")
+                Image(systemName: "lock.shield.fill")
+                    .foregroundStyle(AppColors.primaryDeep)
+                Text("My View PIN")
                 Spacer()
                 Text(pinExists ? "Enabled" : "Off")
                     .foregroundStyle(pinExists ? AppColors.income : .secondary)
@@ -253,16 +264,16 @@ struct SettingsView: View {
                     showRemovePINAlert = true
                 }
             } else {
-                Button("Set Family PIN") {
+                Button("Set My View PIN") {
                     showPINSetup = true
                 }
             }
         } header: {
-            Text("Family View")
+            Text("Access Control")
         } footer: {
             Text(pinExists
-                 ? "Family members can open the app in read-only mode using this PIN."
-                 : "Set a PIN so family members can view your finances without editing anything.")
+                 ? "My View requires this PIN. Family View is always accessible without a PIN."
+                 : "Set a PIN to protect My View. Family members can open Family View freely.")
         }
     }
 

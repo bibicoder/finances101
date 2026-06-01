@@ -50,9 +50,9 @@ struct BalanceChartView: View {
                     x: .value("Date", point.date),
                     y: .value("Balance", Double(truncating: point.balance as NSDecimalNumber))
                 )
-                .foregroundStyle(point.isPredicted ? AppColors.primaryLight.opacity(0.5) : AppColors.primaryDeep)
+                .foregroundStyle(point.isPredicted ? AppColors.primaryDeep.opacity(0.45) : AppColors.primaryDeep)
                 .lineStyle(StrokeStyle(lineWidth: 2, dash: point.isPredicted ? [5, 5] : []))
-                
+
                 AreaMark(
                     x: .value("Date", point.date),
                     y: .value("Balance", Double(truncating: point.balance as NSDecimalNumber))
@@ -60,7 +60,7 @@ struct BalanceChartView: View {
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            point.isPredicted ? AppColors.primaryLight.opacity(0.1) : AppColors.primaryDeep.opacity(0.2),
+                            point.isPredicted ? AppColors.primaryDeep.opacity(0.08) : AppColors.primaryDeep.opacity(0.2),
                             Color.clear
                         ],
                         startPoint: .top,

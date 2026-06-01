@@ -75,7 +75,7 @@ struct DebtPayoffView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Add interest rates for best results", systemImage: "info.circle")
                     .font(.subheadline)
-                    .foregroundStyle(AppColors.primaryLight)
+                    .foregroundStyle(AppColors.primaryDeep)
                 Text("Edit each debt to add its APR (annual interest rate). Without rates, avalanche and snowball will use remaining balance only.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -96,7 +96,7 @@ struct DebtPayoffView: View {
                 summaryCell(
                     label: "Months",
                     value: "\(s.totalMonths)",
-                    color: AppColors.primaryLight
+                    color: AppColors.primaryDeep
                 )
                 Divider().frame(height: 44)
                 summaryCell(
@@ -184,7 +184,7 @@ struct DebtPayoffView: View {
     private func orderColor(_ order: Int) -> Color {
         switch order {
         case 1: return AppColors.income
-        case 2: return AppColors.primaryLight
+        case 2: return Color.orange
         case 3: return .orange
         default: return .secondary
         }

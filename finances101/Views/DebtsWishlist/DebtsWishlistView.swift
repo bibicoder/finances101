@@ -14,6 +14,7 @@ struct DebtsWishlistView: View {
     @State private var safeToSpendAmount: Decimal = 0
     @State private var showAddSubscription = false
     @State private var showPayoffCalculator = false
+    @State private var confettiTrigger = 0
     
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
@@ -38,7 +39,7 @@ struct DebtsWishlistView: View {
                     SubscriptionsView()
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .screenBackground()
             .navigationTitle("Plans")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -72,6 +73,7 @@ struct DebtsWishlistView: View {
             .sheet(isPresented: $showPayoffCalculator) {
                 DebtPayoffView()
             }
+            .overlay { ConfettiView(trigger: $confettiTrigger) }
             .onAppear {
                 let calculator = BalanceCalculator(modelContext: modelContext)
                 safeToSpendAmount = calculator.safeToSpend()
@@ -106,24 +108,45 @@ struct DebtsWishlistView: View {
     
     private var debtsSummary: some View {
         let totalDebt = debts.reduce(Decimal(0)) { $0 + $1.remainingAmount }
-        
-        return VStack(spacing: 8) {
-            Text("Total Remaining")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            
-            Text("\(currencySymbol)\(totalDebt.formatted())")
-                .font(.system(size: 36, weight: .bold, design: .rounded))
-                .foregroundStyle(.yellow)
+        let totalOriginal = debts.reduce(Decimal(0)) { $0 + $1.totalAmount }
+        let paid = totalOriginal - totalDebt
+        let pct = totalOriginal > 0 ? Double(truncating: (paid / totalOriginal) as NSDecimalNumber) : 0
+
+        return VStack(spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Total Remaining")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.75))
+                    Text("\(currencySymbol)\(totalDebt.formatted())")
+                        .font(.system(size: 32, weight: .heavy).monospacedDigit())
+                        .foregroundStyle(.white)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Paid off")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.75))
+                    Text("\(Int(pct * 100))%")
+                        .font(.system(size: 28, weight: .heavy))
+                        .foregroundStyle(Color(hex: "86EFAC"))
+                }
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.2))
+                    Capsule()
+                        .fill(Color(hex: "86EFAC"))
+                        .frame(width: geo.size.width * pct)
+                }
+            }
+            .frame(height: 6)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
-        )
+        .padding(20)
+        .background(AppColors.heroGradient)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: AppColors.cardShadow, radius: 16, x: 0, y: 4)
     }
     
     private var wishlistSection: some View {
@@ -141,7 +164,8 @@ struct DebtsWishlistView: View {
                             WishlistRowView(
                                 item: item,
                                 symbol: currencySymbol,
-                                safeToSpend: safeToSpendAmount
+                                safeToSpend: safeToSpendAmount,
+                                onPurchase: { confettiTrigger += 1 }
                             )
                         }
                     }

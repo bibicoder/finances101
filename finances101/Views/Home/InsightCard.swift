@@ -8,20 +8,23 @@ struct InsightCard: View {
         if let top = insights.first {
             Button { showAll = true } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: top.icon)
-                        .font(.title2)
-                        .foregroundStyle(top.severity.color)
-                        .frame(width: 36)
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(top.severity.color.opacity(0.12))
+                        .frame(width: 38, height: 38)
+                        .overlay(
+                            Image(systemName: top.icon)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(top.severity.color)
+                        )
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(top.title)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppColors.textPrimary)
                             .lineLimit(1)
                         Text(top.message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 12))
+                            .foregroundStyle(AppColors.textSecondary)
                             .lineLimit(2)
                     }
 
@@ -29,22 +32,22 @@ struct InsightCard: View {
 
                     if insights.count > 1 {
                         Text("+\(insights.count - 1)")
-                            .font(.caption2).fontWeight(.bold)
-                            .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(top.severity.color.opacity(0.15))
+                            .font(.system(size: 11, weight: .bold))
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background(top.severity.color.opacity(0.12))
                             .foregroundStyle(top.severity.color)
                             .clipShape(Capsule())
                     }
 
                     Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: "9CA3AF"))
                 }
-                .padding()
+                .padding(14)
                 .appCard()
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(top.severity.color.opacity(0.25), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(top.severity.color.opacity(0.2), lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -64,22 +67,22 @@ struct InsightsListView: View {
             List {
                 ForEach(insights) { insight in
                     HStack(alignment: .top, spacing: 14) {
-                        ZStack {
-                            Circle()
-                                .fill(insight.severity.color.opacity(0.12))
-                                .frame(width: 40, height: 40)
-                            Image(systemName: insight.icon)
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(insight.severity.color)
-                        }
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(insight.severity.color.opacity(0.12))
+                            .frame(width: 40, height: 40)
+                            .overlay(
+                                Image(systemName: insight.icon)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(insight.severity.color)
+                            )
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(insight.title)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(AppColors.textPrimary)
                             Text(insight.message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: 13))
+                                .foregroundStyle(AppColors.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.vertical, 2)
@@ -92,6 +95,7 @@ struct InsightsListView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
+                        .foregroundStyle(AppColors.primaryDeep)
                 }
             }
         }

@@ -38,7 +38,7 @@ enum CategoryManager {
         Category("Salary", icon: "briefcase.fill", color: .green),
         Category("Freelance", icon: "laptopcomputer", color: .blue),
         Category("Business", icon: "building.2.fill", color: .purple),
-        Category("Investments", icon: "chart.line.uptrend.xyaxis", color: AppColors.investment),
+        Category("Investments", icon: "chart.line.uptrend.xyaxis", color: AppColors.accent),
         Category("Gift", icon: "gift.fill", color: .pink),
         Category("Refund", icon: "arrow.uturn.backward", color: .orange),
         Category("Other", icon: "ellipsis.circle.fill", color: .secondary)

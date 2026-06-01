@@ -59,20 +59,23 @@ struct HealthScore {
 
 enum HealthScoreCalculator {
     static func calculate(modelContext: ModelContext) -> HealthScore {
-        let incomeDesc   = FetchDescriptor<IncomeEntry>()
-        let expenseDesc  = FetchDescriptor<ExpenseEntry>()
-        let debtDesc     = FetchDescriptor<Debt>()
-        let accrualDesc  = FetchDescriptor<CharityAccrual>()
-        let paymentDesc  = FetchDescriptor<CharityPayment>()
-        let settingsDesc = FetchDescriptor<AppSettings>()
+        let incomes  = (try? modelContext.fetch(FetchDescriptor<IncomeEntry>())) ?? []
+        let expenses = (try? modelContext.fetch(FetchDescriptor<ExpenseEntry>())) ?? []
+        let debts    = (try? modelContext.fetch(FetchDescriptor<Debt>())) ?? []
+        let accruals = (try? modelContext.fetch(FetchDescriptor<CharityAccrual>())) ?? []
+        let payments = (try? modelContext.fetch(FetchDescriptor<CharityPayment>())) ?? []
+        let settings = (try? modelContext.fetch(FetchDescriptor<AppSettings>()))?.first
+        return calculate(incomes: incomes, expenses: expenses, debts: debts, accruals: accruals, payments: payments, settings: settings)
+    }
 
-        let incomes  = (try? modelContext.fetch(incomeDesc))   ?? []
-        let expenses = (try? modelContext.fetch(expenseDesc))  ?? []
-        let debts    = (try? modelContext.fetch(debtDesc))     ?? []
-        let accruals = (try? modelContext.fetch(accrualDesc))  ?? []
-        let payments = (try? modelContext.fetch(paymentDesc))  ?? []
-        let settings = (try? modelContext.fetch(settingsDesc))?.first
-
+    static func calculate(
+        incomes: [IncomeEntry],
+        expenses: [ExpenseEntry],
+        debts: [Debt],
+        accruals: [CharityAccrual],
+        payments: [CharityPayment],
+        settings: AppSettings?
+    ) -> HealthScore {
         let now      = Date()
         let thirtyAgo = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
 

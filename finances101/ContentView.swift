@@ -5,15 +5,9 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(UserRoleManager.self) private var roleManager
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var settings: [AppSettings]
     @State private var selectedTab = 0
     @State private var isLoaded = false
 
-    private var showCharityTab: Bool {
-        (settings.first?.charityPercentage ?? 0) > 0 ||
-        (settings.first?.charityFixedAmount ?? 0) > 0
-    }
-    
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView()
@@ -21,40 +15,55 @@ struct ContentView: View {
                     Label("Dashboard", systemImage: "house.fill")
                 }
                 .tag(0)
-            
+
             SpendingView()
                 .tabItem {
                     Label("Spending", systemImage: "chart.line.uptrend.xyaxis")
                 }
                 .tag(1)
-            
+
             DebtsWishlistView()
                 .tabItem {
                     Label("Plans", systemImage: "list.bullet.clipboard")
                 }
                 .tag(2)
-            
+
             AnalyticsView()
                 .tabItem {
                     Label("Analytics", systemImage: "chart.pie.fill")
                 }
                 .tag(3)
-            
-            if showCharityTab {
-                CharityView()
-                    .tabItem {
-                        Label("Charity", systemImage: "heart.fill")
-                    }
-                    .tag(4)
-            }
-            
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
-                .tag(showCharityTab ? 5 : 4)
+                .tag(4)
         }
         .tint(AppColors.primaryDeep)
+        .onAppear {
+            let appearance = UITabBarAppearance()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor.white
+
+            let normalColor = UIColor.systemGray
+            let selectedColor = UIColor(red: 0.486, green: 0.227, blue: 0.929, alpha: 1) // #7C3AED
+
+            let item = UITabBarItemAppearance()
+            item.normal.iconColor = normalColor
+            item.normal.titleTextAttributes = [.foregroundColor: normalColor]
+            item.selected.iconColor = selectedColor
+            item.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+            item.focused.iconColor = selectedColor
+            item.focused.titleTextAttributes = [.foregroundColor: selectedColor]
+
+            appearance.stackedLayoutAppearance = item
+            appearance.inlineLayoutAppearance = item
+            appearance.compactInlineLayoutAppearance = item
+
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        }
         .onChange(of: selectedTab) { _, _ in
             HapticManager.selection()
         }
