@@ -16,11 +16,11 @@ struct AddDebtSheet: View {
     @State private var note = ""
 
     private var parsedTotal: Decimal? {
-        Decimal(string: totalAmount.trimmingCharacters(in: .whitespaces))
+        Decimal(userInput: totalAmount)
     }
 
     private var parsedPaid: Decimal {
-        Decimal(string: paidAmount.trimmingCharacters(in: .whitespaces)) ?? 0
+        Decimal(userInput: paidAmount) ?? 0
     }
 
     private var isFormValid: Bool {
@@ -140,7 +140,7 @@ struct AddDebtSheet: View {
             targetDate: hasTargetDate ? targetDate : nil,
             note: note.isEmpty ? nil : note,
             interestRate: Double(interestRate),
-            minimumPayment: Decimal(string: minimumPayment)
+            minimumPayment: Decimal(userInput: minimumPayment)
         )
         
         modelContext.insert(debt)

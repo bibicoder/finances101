@@ -14,7 +14,7 @@ struct WalletTransferSheet: View {
 
     private var isValid: Bool {
         guard let from = fromWallet, let to = toWallet else { return false }
-        return from.id != to.id && (Decimal(string: amount) ?? 0) > 0
+        return from.id != to.id && (Decimal(userInput: amount) ?? 0) > 0
     }
 
     var body: some View {
@@ -67,7 +67,7 @@ struct WalletTransferSheet: View {
 
     private func save() {
         guard let from = fromWallet, let to = toWallet,
-              let amt = Decimal(string: amount.trimmingCharacters(in: .whitespaces)), amt > 0 else { return }
+              let amt = Decimal(userInput: amount), amt > 0 else { return }
         let transfer = WalletTransfer(
             fromWalletId: from.id,
             toWalletId: to.id,

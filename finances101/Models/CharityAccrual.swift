@@ -3,14 +3,15 @@ import SwiftData
 
 @Model
 final class CharityAccrual {
-    var id: UUID
-    var date: Date
-    var baseAmount: Decimal
-    var percentage: Double
-    var accruedAmount: Decimal
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var date: Date = Date()
+    var baseAmount: Decimal = 0
+    var percentage: Double = 0
+    var accruedAmount: Decimal = 0
     var linkedIncomeId: UUID?
     var note: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
     
     init(
         id: UUID = UUID(),

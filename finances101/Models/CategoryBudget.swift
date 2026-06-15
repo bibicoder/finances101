@@ -3,11 +3,12 @@ import SwiftData
 
 @Model
 final class CategoryBudget {
-    var id: UUID
-    var category: String
-    var monthlyLimit: Decimal
-    var isActive: Bool
-    var createdAt: Date
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var category: String = ""
+    var monthlyLimit: Decimal = 0
+    var isActive: Bool = true
+    var createdAt: Date = Date()
 
     init(
         id: UUID = UUID(),

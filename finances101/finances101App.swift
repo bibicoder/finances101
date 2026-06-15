@@ -23,8 +23,11 @@ struct finances101App: App {
 
         // Try with CloudKit sync first; fall back to local-only if CloudKit schema migration fails
         let cloudConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false, cloudKitDatabase: .automatic)
-        if let container = try? ModelContainer(for: schema, configurations: [cloudConfig]) {
-            return container
+        do {
+            return try ModelContainer(for: schema, configurations: [cloudConfig])
+        } catch {
+            // Don't hide this: when CloudKit init fails, iCloud sync is OFF for the session.
+            print("[SwiftData] CloudKit container failed, falling back to local-only store: \(error)")
         }
 
         // CloudKit migration failed (e.g. new model added). Use local store without wiping data.

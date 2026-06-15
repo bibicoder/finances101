@@ -18,9 +18,13 @@ extension Date {
 // MARK: - Plan Week
 
 struct PlanWeek: Identifiable {
-    let id: UUID = UUID()
     let startDate: Date
     let endDate: Date
+
+    // Stable identity: `weeks` is recomputed on every body evaluation, so a
+    // random UUID here changes every render — SwiftUI then re-creates all week
+    // cards on any tap and saved week ids never match (quick add breaks).
+    var id: Date { startDate }
 
     var label: String {
         let cal = Calendar.current
@@ -87,10 +91,7 @@ struct QuickEntryParser {
         var amountIndex: Int?
         var amount: Decimal?
         for (i, part) in parts.enumerated() {
-            let cleaned = part
-                .replacingOccurrences(of: "$", with: "")
-                .replacingOccurrences(of: ",", with: "")
-            if let d = Decimal(string: cleaned), d > 0 {
+            if let d = Decimal(userInput: part), d > 0 {
                 amountIndex = i
                 amount = d
                 break
@@ -159,8 +160,8 @@ final class CustomKeywordStore {
 
 struct CategoryKeywordMatcher {
     private static let builtInRules: [(keywords: [String], category: String)] = [
-        (["gas", "fuel", "shell", "bp", "chevron", "texaco", "exxon", "mobil", "speedway"], "Transportation"),
-        (["uber", "lyft", "taxi", "transit", "bus", "train", "metro", "parking", "toll"], "Transportation"),
+        (["gas", "fuel", "shell", "bp", "chevron", "texaco", "exxon", "mobil", "speedway"], "Transport"),
+        (["uber", "lyft", "taxi", "transit", "bus", "train", "metro", "parking", "toll"], "Transport"),
         (["grocery", "groceries", "whole foods", "trader joe", "kroger", "safeway",
           "aldi", "costco", "publix", "heb", "wegmans"], "Food"),
         (["restaurant", "coffee", "starbucks", "mcdonald", "pizza", "chipotle",

@@ -39,11 +39,22 @@ final class RecurringManager {
                 createEntry(from: template, on: currentDate)
             }
 
-            guard let nextDate = calendar.date(byAdding: .day, value: template.intervalDays, to: currentDate) else { break }
+            guard let nextDate = nextOccurrence(after: currentDate, template: template, calendar: calendar) else { break }
             currentDate = nextDate
         }
 
         template.lastGeneratedDate = currentDate
+    }
+
+    // Calendar-correct stepping: "monthly" means same day next month (Jan 1 → Feb 1),
+    // not +30 days which drifts (Jan 1 → Jan 31 → Mar 2...).
+    private func nextOccurrence(after date: Date, template: RecurringTemplate, calendar: Calendar) -> Date? {
+        switch template.frequency {
+        case .weekly:   return calendar.date(byAdding: .day, value: 7, to: date)
+        case .biweekly: return calendar.date(byAdding: .day, value: 14, to: date)
+        case .monthly:  return calendar.date(byAdding: .month, value: 1, to: date)
+        case .custom:   return calendar.date(byAdding: .day, value: max(1, template.customDays ?? 30), to: date)
+        }
     }
 
     private func entryExistsForDate(template: RecurringTemplate, date: Date, allIncomes: [IncomeEntry], allExpenses: [ExpenseEntry]) -> Bool {

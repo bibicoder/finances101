@@ -23,15 +23,16 @@ enum WishlistStatus: String, Codable, CaseIterable {
 
 @Model
 final class WishlistItem {
-    var id: UUID
-    var title: String
-    var amount: Decimal
-    var priority: WishlistPriority
-    var status: WishlistStatus
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var title: String = ""
+    var amount: Decimal = 0
+    var priority: WishlistPriority = WishlistPriority.medium
+    var status: WishlistStatus = WishlistStatus.waiting
     var scheduledDate: Date?
-    var category: String
+    var category: String = "General"
     var note: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
     
     init(
         id: UUID = UUID(),

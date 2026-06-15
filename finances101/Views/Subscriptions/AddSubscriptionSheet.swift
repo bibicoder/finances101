@@ -39,7 +39,7 @@ struct AddSubscriptionSheet: View {
     @State private var isActive = true
 
     private var isEditing: Bool { editingSubscription != nil }
-    private var isValid: Bool { !name.isEmpty && Decimal(string: amountText) != nil }
+    private var isValid: Bool { !name.isEmpty && Decimal(userInput: amountText) != nil }
 
     var body: some View {
         NavigationStack {
@@ -177,7 +177,7 @@ struct AddSubscriptionSheet: View {
     }
 
     private func save() {
-        guard let amount = Decimal(string: amountText) else { return }
+        guard let amount = Decimal(userInput: amountText) else { return }
 
         if let sub = editingSubscription {
             sub.name = name

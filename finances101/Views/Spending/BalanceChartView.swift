@@ -43,6 +43,12 @@ struct BalanceChartView: View {
             }
     }
     
+    private var dateSpanDays: Int {
+        guard let first = dataPoints.map(\.date).min(),
+              let last = dataPoints.map(\.date).max() else { return 0 }
+        return Calendar.current.dateComponents([.day], from: first, to: last).day ?? 0
+    }
+
     private var chartView: some View {
         Chart {
             ForEach(dataPoints) { point in
@@ -75,11 +81,17 @@ struct BalanceChartView: View {
         }
         .frame(height: 200)
         .chartXAxis {
-            AxisMarks(values: .stride(by: .day, count: 7)) { value in
+            // Fixed label count regardless of range — weekly stride overlapped on Month/Year
+            AxisMarks(values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine()
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                if dateSpanDays > 120 {
+                    AxisValueLabel(format: .dateTime.month(.abbreviated))
+                } else {
+                    AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                }
             }
         }
+        .chartXScale(range: .plotDimension(padding: 8))
         .chartYAxis {
             AxisMarks(position: .leading) { value in
                 AxisGridLine()

@@ -5,10 +5,12 @@ struct AddIncomeSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var settings: [AppSettings]
+    @Query(sort: \Wallet.sortOrder) private var wallets: [Wallet]
     @FocusState private var isAmountFocused: Bool
-    
+
     @State private var title = ""
     @State private var amount = ""
+    @State private var selectedWalletId: UUID?
     @State private var earnedDate = Date()
     @State private var payoutDate = Date()
     @State private var status: IncomeStatus = .earned
@@ -22,7 +24,7 @@ struct AddIncomeSheet: View {
     }
 
     private var parsedAmount: Decimal? {
-        Decimal(string: amount.trimmingCharacters(in: .whitespaces))
+        Decimal(userInput: amount)
     }
 
     private var isFormValid: Bool {
@@ -137,6 +139,23 @@ struct AddIncomeSheet: View {
                     .multilineTextAlignment(.trailing)
             }
             .padding()
+
+            if !wallets.isEmpty {
+                Divider().padding(.leading)
+                HStack {
+                    Text("Wallet")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("Wallet", selection: $selectedWalletId) {
+                        Text("None").tag(Optional<UUID>.none)
+                        ForEach(wallets) { w in
+                            Label(w.name, systemImage: w.iconName).tag(Optional(w.id))
+                        }
+                    }
+                    .labelsHidden()
+                }
+                .padding()
+            }
         }
         .appCard()
     }
@@ -264,9 +283,10 @@ struct AddIncomeSheet: View {
             category: category,
             note: note.isEmpty ? nil : note,
             isRecurring: isRecurring,
-            recurringTemplateId: templateId
+            recurringTemplateId: templateId,
+            walletId: selectedWalletId
         )
-        
+
         modelContext.insert(income)
         CharityManager.createAccrualIfNeeded(for: income, in: modelContext)
         

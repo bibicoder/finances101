@@ -16,7 +16,7 @@ struct AddBudgetSheet: View {
     @State private var limitText: String = ""
 
     private var isEditing: Bool { editing != nil }
-    private var isValid: Bool { !selectedCategory.isEmpty && (Decimal(string: limitText) ?? 0) > 0 }
+    private var isValid: Bool { !selectedCategory.isEmpty && (Decimal(userInput: limitText) ?? 0) > 0 }
 
     private var availableCategories: [Category] {
         CategoryManager.expenseCategories.filter { cat in
@@ -115,7 +115,7 @@ struct AddBudgetSheet: View {
     }
 
     private func save() {
-        guard let limit = Decimal(string: limitText), limit > 0 else { return }
+        guard let limit = Decimal(userInput: limitText), limit > 0 else { return }
 
         if let b = editing {
             b.monthlyLimit = limit

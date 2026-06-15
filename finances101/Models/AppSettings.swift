@@ -22,20 +22,31 @@ enum CharityMode: String, Codable, CaseIterable {
 
 @Model
 final class AppSettings {
-    var id: UUID
-    var initialBalance: Decimal
-    var charityPercentage: Double
-    var charityMode: CharityMode
-    var charityFixedAmount: Decimal
-    var charityAccrualMode: CharityAccrualMode
-    var currency: String
-    var currencySymbol: String
-    var defaultHorizonDays: Int
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var initialBalance: Decimal = 0
+    var charityPercentage: Double = 25.0
+    var charityMode: CharityMode = CharityMode.percentage
+    var charityFixedAmount: Decimal = 0
+    var charityAccrualMode: CharityAccrualMode = CharityAccrualMode.onEarned
+    var currency: String = "USD"
+    var currencySymbol: String = "$"
+    var defaultHorizonDays: Int = 30
     var plaidCashBalance: Decimal?        // sum of checking + savings from last Plaid sync
     var plaidCreditBalance: Decimal?     // sum of credit card balances from last Plaid sync
     var plaidSyncedAt: Date?             // timestamp of last successful Plaid balance sync
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+
+    /// True when the current charity mode actually produces accruals.
+    /// Gating UI on `charityPercentage > 0` alone hides charity for fixed-amount mode.
+    var isCharityActive: Bool {
+        switch charityMode {
+        case .percentage:  return charityPercentage > 0
+        case .fixedAmount: return charityFixedAmount > 0
+        case .combined:    return charityPercentage > 0 || charityFixedAmount > 0
+        }
+    }
 
     init(
         id: UUID = UUID(),

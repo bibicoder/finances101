@@ -30,6 +30,7 @@ struct SettingsView: View {
     @State private var showDisconnectBankAlert = false
     @State private var showCharityView = false
     @State private var showCSVImport = false
+    @State private var showWallets = false
     @State private var plaidManager = PlaidManager.shared
 
     // Notifications
@@ -57,6 +58,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 charitySection
+                walletsSection
                 currencySection
                 notificationsSection
                 if roleManager.canEdit {
@@ -128,6 +130,9 @@ struct SettingsView: View {
             .sheet(isPresented: $showCSVImport) {
                 CSVImportView()
             }
+            .sheet(isPresented: $showWallets) {
+                WalletsView()
+            }
             .alert("Disconnect Bank?", isPresented: $showDisconnectBankAlert) {
                 Button("Cancel", role: .cancel) {}
                 Button("Disconnect", role: .destructive) {
@@ -192,15 +197,30 @@ struct SettingsView: View {
             return "Donate \(Int(charityPercentage))% of each income received"
         case .fixedAmount:
             let symbol = currentSettings?.currencySymbol ?? "$"
-            let amount = Decimal(string: charityFixedAmount) ?? 0
+            let amount = Decimal(userInput: charityFixedAmount) ?? 0
             return "Donate a fixed \(symbol)\(amount.formatted()) once per month"
         case .combined:
             let symbol = currentSettings?.currencySymbol ?? "$"
-            let fixed = Decimal(string: charityFixedAmount) ?? 0
+            let fixed = Decimal(userInput: charityFixedAmount) ?? 0
             return "Per income: whichever is greater — \(Int(charityPercentage))% or \(symbol)\(fixed.formatted()) fixed"
         }
     }
     
+    private var walletsSection: some View {
+        Section {
+            Button {
+                showWallets = true
+            } label: {
+                Label("Wallets & Transfers", systemImage: "wallet.pass.fill")
+                    .foregroundStyle(AppColors.primaryDeep)
+            }
+        } header: {
+            Text("Wallets")
+        } footer: {
+            Text("Cash, cards, and savings accounts with transfers between them")
+        }
+    }
+
     private var notificationsSection: some View {
         Section {
             if notifAuthStatus == .denied {
@@ -305,35 +325,38 @@ struct SettingsView: View {
     
     private var bankSection: some View {
         Section {
-            HStack {
-                Image(systemName: "building.columns.fill")
-                    .foregroundStyle(AppColors.primaryDeep)
-                Text("Bank Account")
-                Spacer()
-                Text(plaidManager.isConnected ? plaidManager.connectedBankName : "Not connected")
-                    .foregroundStyle(plaidManager.isConnected ? AppColors.income : .secondary)
-                    .font(.subheadline)
-                    .lineLimit(1)
+            // One row per linked institution (Chase, Cash App, ...) — rename + per-bank balance
+            ForEach(plaidManager.connections) { connection in
+                BankConnectionRow(
+                    connection: connection,
+                    symbol: settings.first?.currencySymbol ?? "$",
+                    onRename: { plaidManager.setNickname(id: connection.id, $0) },
+                    onRemove: {
+                        plaidManager.removeConnection(id: connection.id)
+                        HapticManager.success()
+                    }
+                )
             }
 
             if plaidManager.isConnected {
                 Button("Import Transactions") {
                     showImportTransactions = true
                 }
-                Button("Disconnect Bank", role: .destructive) {
+            }
+            Button(plaidManager.isConnected ? "Add Another Bank" : "Connect Bank (Plaid)") {
+                showConnectBank = true
+            }
+            if plaidManager.isConnected {
+                Button("Disconnect All", role: .destructive) {
                     showDisconnectBankAlert = true
-                }
-            } else {
-                Button("Connect Bank (Plaid)") {
-                    showConnectBank = true
                 }
             }
         } header: {
             Text("Bank Integration")
         } footer: {
             Text(plaidManager.isConnected
-                 ? "Pull the latest transactions from \(plaidManager.connectedBankName) into Finance 101."
-                 : "Connect your bank to automatically import transactions via Plaid.")
+                 ? "Balances and transactions sync automatically from all linked institutions. Pull down on the Dashboard to refresh now."
+                 : "Connect your banks (Chase, Cash App, ...) to automatically import transactions via Plaid.")
         }
     }
 
@@ -391,14 +414,22 @@ struct SettingsView: View {
     private var advancedSection: some View {
         Section("Advanced") {
             DisclosureGroup("Advanced Settings", isExpanded: $showAdvanced) {
-                HStack {
-                    Text("Initial Balance")
-                    Spacer()
-                    TextField("0.00", text: $initialBalance)
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 120)
-                        .focused($isBalanceFieldFocused)
+                if plaidManager.isConnected {
+                    // With a bank linked, the bank is the source of truth for cash —
+                    // a manual starting balance would double-count, so it's disabled.
+                    Text("Starting balance is managed by your linked bank. Use a manual Cash wallet for money outside the bank.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack {
+                        Text("Starting Balance")
+                        Spacer()
+                        TextField("0.00", text: $initialBalance)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 120)
+                            .focused($isBalanceFieldFocused)
+                    }
                 }
             }
         }
@@ -435,12 +466,12 @@ struct SettingsView: View {
     private func saveSettings() {
         guard let settings = currentSettings else { return }
 
-        if let balance = Decimal(string: initialBalance) {
+        if let balance = Decimal(userInput: initialBalance) {
             settings.initialBalance = balance
         }
         settings.charityPercentage = charityPercentage
         settings.charityMode = charityMode
-        settings.charityFixedAmount = Decimal(string: charityFixedAmount) ?? 0
+        settings.charityFixedAmount = Decimal(userInput: charityFixedAmount) ?? 0
         settings.currency = currency
         settings.currencySymbol = currencySymbol
         settings.updatedAt = Date()
@@ -523,6 +554,60 @@ struct SettingsView: View {
         } catch {
             print("Failed to reset data: \(error)")
         }
+    }
+}
+
+// MARK: - Bank connection row (rename + balance)
+
+private struct BankConnectionRow: View {
+    let connection: PlaidConnection
+    let symbol: String
+    let onRename: (String) -> Void
+    let onRemove: () -> Void
+
+    @State private var nickname: String = ""
+    @FocusState private var nameFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "building.columns.fill")
+                    .foregroundStyle(AppColors.primaryDeep)
+
+                TextField(connection.institutionName, text: $nickname)
+                    .focused($nameFocused)
+                    .submitLabel(.done)
+                    .onSubmit { commit() }
+
+                Spacer()
+
+                Button(role: .destructive, action: onRemove) {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(AppColors.expense)
+                }
+                .buttonStyle(.borderless)
+            }
+
+            HStack {
+                // Show the real institution under a custom nickname
+                Text(connection.nickname == nil ? "Connected \(connection.connectedAt.formatted(date: .abbreviated, time: .omitted))" : connection.institutionName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if let cash = connection.cashBalance {
+                    Text("\(symbol)\(cash.formatted())")
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(AppColors.income)
+                }
+            }
+        }
+        .onAppear { nickname = connection.nickname ?? "" }
+        .onChange(of: nameFocused) { _, focused in if !focused { commit() } }
+    }
+
+    private func commit() {
+        onRename(nickname)
+        HapticManager.selection()
     }
 }
 

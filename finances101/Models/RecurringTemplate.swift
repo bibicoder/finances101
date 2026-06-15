@@ -24,19 +24,20 @@ enum RecurringType: String, Codable, CaseIterable {
 
 @Model
 final class RecurringTemplate {
-    var id: UUID
-    var title: String
-    var amount: Decimal
-    var type: RecurringType
-    var frequency: RecurringFrequency
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var title: String = ""
+    var amount: Decimal = 0
+    var type: RecurringType = RecurringType.expense
+    var frequency: RecurringFrequency = RecurringFrequency.monthly
     var customDays: Int?
-    var category: String
-    var startDate: Date
+    var category: String = "General"
+    var startDate: Date = Date()
     var endDate: Date?
-    var isActive: Bool
+    var isActive: Bool = true
     var lastGeneratedDate: Date?
     var note: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
     
     var intervalDays: Int {
         if frequency == .custom {

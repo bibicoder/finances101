@@ -4,26 +4,30 @@ import SwiftData
 struct BalanceBreakdownSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var settings: [AppSettings]
+    @Query(sort: \Wallet.sortOrder) private var wallets: [Wallet]
+    @Query private var incomes: [IncomeEntry]
+    @Query private var expenses: [ExpenseEntry]
+    @Query private var transfers: [WalletTransfer]
+    @State private var plaidManager = PlaidManager.shared
     let balanceData: BalanceData
     let symbol: String
 
-    private var hasPlaidData: Bool {
-        settings.first?.plaidSyncedAt != nil && (settings.first?.plaidCashBalance ?? 0) > 0
+    private var syncedBanks: [PlaidConnection] {
+        plaidManager.connections.filter { $0.syncedAt != nil }
     }
-    
+
+    private var hasPlaidData: Bool { !syncedBanks.isEmpty }
+
     private var reservedAmount: Decimal {
-        balanceData.charityOwed + balanceData.plannedOutflow
+        balanceData.weekPlanned
     }
-    
-    private var availableAmount: Decimal {
-        balanceData.actualBalance - reservedAmount
-    }
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
                     totalSection
+                    if !wallets.isEmpty { walletsSection }
                     if hasPlaidData { bankAccountsSection }
                     breakdownSection
                     projectionSection
@@ -58,51 +62,59 @@ struct BalanceBreakdownSheet: View {
         .appCard()
     }
     
+    // Where the money lies — one row per wallet
+    private var walletsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Wallets")
+                .font(.headline)
+
+            ForEach(wallets) { wallet in
+                let balance = WalletBalanceCalculator.balance(
+                    of: wallet, incomes: incomes, expenses: expenses, transfers: transfers
+                )
+                let isSavings = wallet.type == .savings || wallet.type == .investment || wallet.type == .crypto
+                BreakdownRow(
+                    title: wallet.name,
+                    subtitle: wallet.type.rawValue,
+                    amount: balance,
+                    symbol: symbol,
+                    icon: wallet.iconName,
+                    color: isSavings ? AppColors.savings : Color(hex: wallet.colorHex)
+                )
+            }
+        }
+        .padding()
+        .appCard()
+    }
+
     private var bankAccountsSection: some View {
-        let s = settings.first!
-        let cash = s.plaidCashBalance ?? 0
-        let credit = s.plaidCreditBalance ?? 0
-        let syncedAt = s.plaidSyncedAt.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? ""
+        let totalCredit = plaidManager.totalCredit
         return VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Bank Accounts")
-                    .font(.headline)
-                Spacer()
-                Text("Synced \(syncedAt)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Text("Banks")
+                .font(.headline)
+
+            // One row per linked bank, by its name/nickname
+            ForEach(syncedBanks) { bank in
+                BreakdownRow(
+                    title: bank.displayName,
+                    subtitle: bank.syncedAt.map { "Available · synced \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Available",
+                    amount: bank.cashBalance ?? 0,
+                    symbol: symbol,
+                    icon: "building.columns.fill",
+                    color: AppColors.income
+                )
             }
 
-            BreakdownRow(
-                title: "Cash",
-                subtitle: "Checking + Savings",
-                amount: cash,
-                symbol: symbol,
-                icon: "building.columns.fill",
-                color: AppColors.income
-            )
-
-            if credit > 0 {
+            if totalCredit > 0 {
+                Divider()
                 BreakdownRow(
                     title: "Credit Card Debt",
-                    subtitle: "Balance owed — not included in cash",
-                    amount: credit,
+                    subtitle: "Owed across all banks — not part of cash",
+                    amount: totalCredit,
                     symbol: symbol,
                     icon: "creditcard.fill",
                     color: AppColors.expense
                 )
-
-                Divider()
-
-                HStack {
-                    Text("Net (Cash − Credit)")
-                        .font(.subheadline).fontWeight(.medium)
-                    Spacer()
-                    let net = cash - credit
-                    Text("\(net >= 0 ? "" : "-")\(symbol)\(abs(net).formatted())")
-                        .font(.subheadline).fontWeight(.bold)
-                        .foregroundStyle(net >= 0 ? AppColors.income : AppColors.expense)
-                }
             }
         }
         .padding()
@@ -115,28 +127,30 @@ struct BalanceBreakdownSheet: View {
                 .font(.headline)
             
             BreakdownRow(
-                title: "Available",
-                subtitle: "Free to use",
-                amount: availableAmount,
-                symbol: symbol,
-                icon: "wallet.pass.fill",
-                color: AppColors.income
-            )
-            
-            BreakdownRow(
-                title: "Reserved",
-                subtitle: "Planned expenses + Charity",
+                title: "Planned This Week",
+                subtitle: "Unpaid plans due by end of week",
                 amount: reservedAmount,
                 symbol: symbol,
                 icon: "lock.fill",
                 color: AppColors.expense
             )
-            
+
+            if balanceData.savingsSetAside > 0 {
+                BreakdownRow(
+                    title: "Set Aside",
+                    subtitle: "Savings & investment wallets",
+                    amount: balanceData.savingsSetAside,
+                    symbol: symbol,
+                    icon: "banknote.fill",
+                    color: AppColors.savings
+                )
+            }
+
             Divider()
             
             BreakdownRow(
                 title: "Safe to Spend",
-                subtitle: "After obligations",
+                subtitle: "Balance − this week's plans",
                 amount: balanceData.safeToSpend,
                 symbol: symbol,
                 icon: "checkmark.shield.fill",

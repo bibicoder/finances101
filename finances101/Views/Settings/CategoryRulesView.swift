@@ -44,7 +44,7 @@ struct CategoryRulesView: View {
 
             // Built-in preview (read-only)
             Section {
-                builtInRow("gas, fuel, chevron", category: "Transportation")
+                builtInRow("gas, fuel, chevron", category: "Transport")
                 builtInRow("grocery, whole foods, kroger", category: "Food")
                 builtInRow("rent, mortgage, lease", category: "Housing")
                 builtInRow("netflix, spotify, hulu", category: "Subscriptions")

@@ -65,7 +65,8 @@ enum HealthScoreCalculator {
         let accruals = (try? modelContext.fetch(FetchDescriptor<CharityAccrual>())) ?? []
         let payments = (try? modelContext.fetch(FetchDescriptor<CharityPayment>())) ?? []
         let settings = (try? modelContext.fetch(FetchDescriptor<AppSettings>()))?.first
-        return calculate(incomes: incomes, expenses: expenses, debts: debts, accruals: accruals, payments: payments, settings: settings)
+        let realBalance = BalanceCalculator(modelContext: modelContext).actualBalance()
+        return calculate(incomes: incomes, expenses: expenses, debts: debts, accruals: accruals, payments: payments, settings: settings, actualBalance: realBalance)
     }
 
     static func calculate(
@@ -74,7 +75,8 @@ enum HealthScoreCalculator {
         debts: [Debt],
         accruals: [CharityAccrual],
         payments: [CharityPayment],
-        settings: AppSettings?
+        settings: AppSettings?,
+        actualBalance: Decimal
     ) -> HealthScore {
         let now      = Date()
         let thirtyAgo = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
@@ -89,12 +91,9 @@ enum HealthScoreCalculator {
             .filter { $0.status == .paid && $0.dueDate >= thirtyAgo && $0.dueDate <= now && !$0.isDebtPayment }
             .reduce(Decimal(0)) { $0 + $1.amount }
 
-        // Actual balance
-        let initialBalance = settings?.initialBalance ?? 0
-        let totalPaidIncome = incomes.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
-        let totalPaidExpenses = expenses.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
+        // Real balance is passed in (bank + wallets + crypto + cash) — same number
+        // the dashboard shows, so the score reflects reality, not a ledger sum.
         let charityPaid = payments.reduce(Decimal(0)) { $0 + $1.amount }
-        let actualBalance = initialBalance + totalPaidIncome - totalPaidExpenses - charityPaid
 
         // Charity owed
         let charityAccrued = accruals.reduce(Decimal(0)) { $0 + $1.accruedAmount }

@@ -9,10 +9,17 @@ struct WeeklyPlanView: View {
     @Query private var settings: [AppSettings]
     @Query private var charityAccruals: [CharityAccrual]
     @Query private var charityPayments: [CharityPayment]
+    @Query private var wallets: [Wallet]
+    @Query private var walletTransfers: [WalletTransfer]
 
-    @State private var activeQuickEntryWeekId: UUID? = nil
+    @State private var activeQuickEntryWeekId: Date? = nil
     @State private var quickEntryText = ""
     @FocusState private var quickEntryFocused: Bool
+
+    // Quick-entry expense waiting for category confirmation in the half-sheet.
+    // `autoCommitStash` survives sheet dismissal so swiping down still saves with the auto category.
+    @State private var pendingExpense: PendingQuickExpense?
+    @State private var autoCommitStash: PendingQuickExpense?
 
     private var symbol: String { settings.first?.currencySymbol ?? "$" }
     private var weeks: [PlanWeek] { PlanWeek.next6Weeks() }
@@ -21,7 +28,8 @@ struct WeeklyPlanView: View {
         BalanceCalculator(
             incomes: incomes, expenses: expenses,
             accruals: charityAccruals, payments: charityPayments,
-            settings: settings.first
+            settings: settings.first,
+            wallets: wallets, transfers: walletTransfers
         ).actualBalance()
     }
 
@@ -43,6 +51,28 @@ struct WeeklyPlanView: View {
             .padding(.top, 12)
         }
         .screenBackground()
+        .sheet(item: $pendingExpense, onDismiss: {
+            // Swiped down without picking → save with the auto-suggested category
+            if let stash = autoCommitStash {
+                insertExpense(stash, category: stash.suggestedCategory)
+                autoCommitStash = nil
+            }
+        }) { pending in
+            CategoryQuickPickSheet(pending: pending, symbol: symbol) { category in
+                autoCommitStash = nil
+                insertExpense(pending, category: category)
+                pendingExpense = nil
+            }
+        }
+    }
+
+    private func insertExpense(_ pending: PendingQuickExpense, category: String) {
+        modelContext.insert(
+            ExpenseEntry(title: pending.title, amount: pending.amount, dueDate: pending.dueDate,
+                         category: category, type: .optional, status: .planned)
+        )
+        modelContext.saveWithLogging()
+        HapticManager.success()
     }
 
     // MARK: - Balance Header
@@ -75,19 +105,42 @@ struct WeeklyPlanView: View {
     private func weekCard(week: PlanWeek, index: Int) -> some View {
         let wExpenses = weekExpenses(for: week)
         let wIncomes = weekIncomes(for: week)
+        let wPaidExpenses = weekPaidExpenses(for: week)
+        let wPaidIncomes = weekPaidIncomes(for: week)
         let projected = projectedBalance(throughWeekIndex: index)
         let isActive = activeQuickEntryWeekId == week.id
-        let weekNet = wIncomes.reduce(Decimal(0)) { $0 + $1.amount }
-                    - wExpenses.reduce(Decimal(0)) { $0 + $1.amount }
+        let weekNet = (wIncomes + wPaidIncomes).reduce(Decimal(0)) { $0 + $1.amount }
+                    - (wExpenses + wPaidExpenses).reduce(Decimal(0)) { $0 + $1.amount }
+        let hasAnyRows = !wIncomes.isEmpty || !wExpenses.isEmpty || !wPaidIncomes.isEmpty || !wPaidExpenses.isEmpty
 
         return VStack(spacing: 0) {
             weekHeader(week: week, projected: projected)
             Divider()
 
+            // Already received/paid this week (auto-imported from bank or marked manually)
+            ForEach(wPaidIncomes) { income in
+                planRow(
+                    title: income.title, amount: income.amount,
+                    date: income.payoutDate, isIncome: true, category: nil, isPaid: true,
+                    moveMenu: AnyView(incomeMoveMenu(income: income, currentWeek: week))
+                )
+                Divider().padding(.leading, 44)
+            }
+
+            ForEach(wPaidExpenses) { expense in
+                planRow(
+                    title: expense.title, amount: expense.amount,
+                    date: expense.dueDate, isIncome: false,
+                    category: CategoryManager.expenseCategory(for: expense.category), isPaid: true,
+                    moveMenu: AnyView(expenseMoveMenu(expense: expense, currentWeek: week))
+                )
+                Divider().padding(.leading, 44)
+            }
+
             ForEach(wIncomes) { income in
                 planRow(
                     title: income.title, amount: income.amount,
-                    date: income.payoutDate, isIncome: true,
+                    date: income.payoutDate, isIncome: true, category: nil,
                     moveMenu: AnyView(incomeMoveMenu(income: income, currentWeek: week))
                 )
                 Divider().padding(.leading, 44)
@@ -97,12 +150,13 @@ struct WeeklyPlanView: View {
                 planRow(
                     title: expense.title, amount: expense.amount,
                     date: expense.dueDate, isIncome: false,
+                    category: CategoryManager.expenseCategory(for: expense.category),
                     moveMenu: AnyView(expenseMoveMenu(expense: expense, currentWeek: week))
                 )
                 Divider().padding(.leading, 44)
             }
 
-            if wIncomes.isEmpty && wExpenses.isEmpty {
+            if !hasAnyRows {
                 Text("Nothing planned this week")
                     .font(.caption)
                     .foregroundStyle(AppColors.textSecondary)
@@ -110,7 +164,7 @@ struct WeeklyPlanView: View {
                     .padding(.vertical, 12)
             }
 
-            if !wIncomes.isEmpty || !wExpenses.isEmpty {
+            if hasAnyRows {
                 weekNetRow(weekNet: weekNet)
                 Divider()
             }
@@ -165,19 +219,39 @@ struct WeeklyPlanView: View {
 
     // MARK: - Plan Row with Move Context Menu (6.4)
 
-    private func planRow(title: String, amount: Decimal, date: Date, isIncome: Bool, moveMenu: AnyView) -> some View {
-        HStack(spacing: 10) {
+    // Expense rows are color-coded by category (icon + label); income rows stay green.
+    // Paid rows (bank-imported or marked done) render dimmed with a checkmark.
+    private func planRow(title: String, amount: Decimal, date: Date, isIncome: Bool, category: Category?, isPaid: Bool = false, moveMenu: AnyView) -> some View {
+        let accent: Color = isIncome ? AppColors.income : (category?.color ?? AppColors.expense)
+        let icon: String = isPaid ? "checkmark" : (isIncome ? "arrow.down" : (category?.icon ?? "arrow.up"))
+
+        return HStack(spacing: 10) {
             Circle()
-                .fill((isIncome ? AppColors.income : AppColors.expense).opacity(0.12))
+                .fill(accent.opacity(0.14))
                 .frame(width: 28, height: 28)
                 .overlay(
-                    Image(systemName: isIncome ? "arrow.down" : "arrow.up")
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundStyle(isIncome ? AppColors.income : AppColors.expense)
+                    Image(systemName: icon)
+                        .font(.system(size: isIncome || isPaid ? 9 : 11, weight: .bold))
+                        .foregroundStyle(accent)
                 )
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.subheadline.weight(.medium)).lineLimit(1)
-                Text(date, style: .date).font(.caption2).foregroundStyle(AppColors.textSecondary)
+                HStack(spacing: 4) {
+                    Text(date, style: .date)
+                        .foregroundStyle(AppColors.textSecondary)
+                    if let category {
+                        Text("·").foregroundStyle(AppColors.textSecondary)
+                        Text(category.name)
+                            .foregroundStyle(accent)
+                            .fontWeight(.medium)
+                    }
+                    if isPaid {
+                        Text("·").foregroundStyle(AppColors.textSecondary)
+                        Text(isIncome ? "received" : "paid")
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                }
+                .font(.caption2)
             }
             Spacer()
             Text("\(isIncome ? "+" : "-")\(symbol)\(amount.formatted(.number.precision(.fractionLength(2))))")
@@ -186,11 +260,31 @@ struct WeeklyPlanView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+        .opacity(isPaid ? 0.6 : 1)
         .contextMenu { moveMenu }
     }
 
     @ViewBuilder
     private func expenseMoveMenu(expense: ExpenseEntry, currentWeek: PlanWeek) -> some View {
+        // Long press → change category
+        Menu {
+            ForEach(CategoryManager.expenseCategories) { category in
+                Button {
+                    expense.category = category.name
+                    modelContext.saveWithLogging()
+                    HapticManager.selection()
+                } label: {
+                    if expense.category == category.name {
+                        Label(category.name, systemImage: "checkmark")
+                    } else {
+                        Label(category.name, systemImage: category.icon)
+                    }
+                }
+            }
+        } label: {
+            Label("Category: \(expense.category)", systemImage: "tag")
+        }
+        Divider()
         ForEach(weeks) { week in
             if week.id != currentWeek.id {
                 Button {
@@ -286,12 +380,14 @@ struct WeeklyPlanView: View {
         let targetDate = week.midpoint()
         switch result {
         case .expense(let title, let amount, let category):
-            modelContext.insert(
-                ExpenseEntry(title: title, amount: amount, dueDate: targetDate,
-                             category: category, type: .optional, status: .planned)
+            // Don't insert yet — show the compact category sheet first.
+            // Picking a chip saves with that category; swiping down saves with `category` (auto).
+            let pending = PendingQuickExpense(
+                title: title, amount: amount,
+                suggestedCategory: category, dueDate: targetDate
             )
-            modelContext.saveWithLogging()
-            HapticManager.success()
+            autoCommitStash = pending
+            pendingExpense = pending
         case .income(let title, let amount):
             modelContext.insert(
                 IncomeEntry(title: title, amount: amount,
@@ -396,6 +492,22 @@ struct WeeklyPlanView: View {
         incomes.filter {
             $0.payoutDate >= week.startDate && $0.payoutDate < week.endDate &&
             $0.status.isUpcoming  // planned, earned, delayed — not cancelled, not paid
+        }
+    }
+
+    // Already-paid activity (bank imports land here) — shown in its week,
+    // but NOT added to the projection: it's already inside the current balance.
+    private func weekPaidExpenses(for week: PlanWeek) -> [ExpenseEntry] {
+        expenses.filter {
+            $0.dueDate >= week.startDate && $0.dueDate < week.endDate &&
+            $0.status == .paid && !$0.isDebtPayment
+        }
+    }
+
+    private func weekPaidIncomes(for week: PlanWeek) -> [IncomeEntry] {
+        incomes.filter {
+            $0.payoutDate >= week.startDate && $0.payoutDate < week.endDate &&
+            $0.status == .paid
         }
     }
 

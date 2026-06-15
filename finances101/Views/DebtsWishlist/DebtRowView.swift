@@ -139,7 +139,7 @@ struct DebtPaymentSheet: View {
                     Button("Record Payment") {
                         recordPayment()
                     }
-                    .disabled(paymentAmount.isEmpty || (Decimal(string: paymentAmount) ?? 0) <= 0)
+                    .disabled(paymentAmount.isEmpty || (Decimal(userInput: paymentAmount) ?? 0) <= 0)
                 }
             }
             .navigationTitle("Pay Debt")
@@ -180,7 +180,7 @@ struct DebtPaymentSheet: View {
     }
 
     private func recordPayment() {
-        guard let amount = Decimal(string: paymentAmount) else { return }
+        guard let amount = Decimal(userInput: paymentAmount) else { return }
         let actualPayment = min(amount, debt.remainingAmount)
         debt.paidAmount += actualPayment
 

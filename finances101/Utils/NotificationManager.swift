@@ -46,23 +46,35 @@ final class NotificationManager {
         }
     }
 
+    // iOS keeps at most 64 pending local notifications and silently drops the rest.
+    // Collect all candidates first, then schedule only the nearest ones.
+    private static let pendingLimit = 60
+
+    private struct PendingNotification {
+        let id: String
+        let title: String
+        let body: String
+        let date: Date
+    }
+
     func scheduleAll(expenses: [ExpenseEntry], debts: [Debt], subscriptions: [Subscription]) {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         guard isEnabled else { return }
 
         let now = Date()
         let calendar = Calendar.current
+        var candidates: [PendingNotification] = []
 
         if notifyPayments {
             for expense in expenses where expense.status == .planned && !expense.isDebtPayment {
                 guard let reminderDate = calendar.date(byAdding: .day, value: -1, to: expense.dueDate),
                       reminderDate > now else { continue }
-                schedule(
+                candidates.append(PendingNotification(
                     id: "expense_\(expense.id)",
                     title: "Payment Due Tomorrow",
                     body: "\(expense.title) — due tomorrow",
                     date: reminderDate
-                )
+                ))
             }
         }
 
@@ -71,12 +83,12 @@ final class NotificationManager {
                 guard let targetDate = debt.targetDate,
                       let reminderDate = calendar.date(byAdding: .day, value: -1, to: targetDate),
                       reminderDate > now else { continue }
-                schedule(
+                candidates.append(PendingNotification(
                     id: "debt_\(debt.id)",
                     title: "Debt Target Date Tomorrow",
                     body: "\(debt.creditor) — target payoff date is tomorrow",
                     date: reminderDate
-                )
+                ))
             }
         }
 
@@ -86,13 +98,17 @@ final class NotificationManager {
                 guard let reminderDate = calendar.date(byAdding: .day, value: -daysBefore, to: sub.nextBillingDate),
                       reminderDate > now else { continue }
                 let daysLabel = daysBefore == 1 ? "tomorrow" : "in \(daysBefore) days"
-                schedule(
+                candidates.append(PendingNotification(
                     id: "sub_\(sub.id)",
                     title: "Subscription Renewing",
                     body: "\(sub.name) renews \(daysLabel)",
                     date: reminderDate
-                )
+                ))
             }
+        }
+
+        for item in candidates.sorted(by: { $0.date < $1.date }).prefix(Self.pendingLimit) {
+            schedule(id: item.id, title: item.title, body: item.body, date: item.date)
         }
     }
 

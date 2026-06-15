@@ -208,7 +208,7 @@ struct ReceiptScannerView: View {
               let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
               let range = Range(match.range(at: 1), in: line) else { return nil }
         let numStr = String(line[range]).replacingOccurrences(of: ",", with: ".")
-        return Decimal(string: numStr)
+        return Decimal(userInput: numStr)
     }
 }
 

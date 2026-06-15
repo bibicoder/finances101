@@ -3,11 +3,12 @@ import SwiftData
 
 @Model
 final class CharityPayment {
-    var id: UUID
-    var date: Date
-    var amount: Decimal
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var date: Date = Date()
+    var amount: Decimal = 0
     var note: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
     
     init(
         id: UUID = UUID(),

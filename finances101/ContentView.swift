@@ -34,17 +34,13 @@ struct ContentView: View {
                 }
                 .tag(3)
 
-            WalletsView()
-                .tabItem {
-                    Label("Wallets", systemImage: "wallet.pass.fill")
-                }
-                .tag(4)
-
+            // iOS shows max 5 tabs — a 6th creates the "More" menu (regression we fixed before).
+            // Wallets is accessible from Settings > Wallets.
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
-                .tag(5)
+                .tag(4)
         }
         .tint(AppColors.primaryDeep)
         .onAppear {
@@ -106,6 +102,10 @@ struct ContentView: View {
             let subscriptions = (try? modelContext.fetch(FetchDescriptor<Subscription>())) ?? []
             NotificationManager.shared.scheduleAll(expenses: expenses, debts: debts, subscriptions: subscriptions)
         }
+
+        // Keep balance anchored to the real bank: pull new transactions + balances
+        // from all linked institutions (throttled inside the service).
+        Task { await PlaidSyncService.autoSyncIfNeeded(modelContext: modelContext) }
     }
     
     private func ensureSettingsExist() {

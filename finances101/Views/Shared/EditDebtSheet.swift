@@ -140,14 +140,14 @@ struct EditDebtSheet: View {
     }
     
     private func saveChanges() {
-        guard let total = Decimal(string: totalAmount) else { return }
-        let paid = Decimal(string: paidAmount) ?? 0
+        guard let total = Decimal(userInput: totalAmount) else { return }
+        let paid = Decimal(userInput: paidAmount) ?? 0
         
         debt.creditor = creditor
         debt.totalAmount = total
         debt.paidAmount = paid
         debt.interestRate = Double(interestRate)
-        debt.minimumPayment = Decimal(string: minimumPayment)
+        debt.minimumPayment = Decimal(userInput: minimumPayment)
         debt.priority = priority
         debt.targetDate = hasTargetDate ? targetDate : nil
         debt.note = note.isEmpty ? nil : note

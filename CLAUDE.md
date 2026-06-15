@@ -53,15 +53,25 @@ finances101/
 - AppSettings is a singleton row — always check `settings.first` before accessing
 - All monetary values use `Decimal` (not Double/Float) — keep this consistent
 
-## Design system
+## Design system (Bold & Colorful — purple/lime)
 ```swift
-AppColors.primaryDeep  = #1C3D5A  // navy
-AppColors.primaryLight = #3FA7F5  // blue
-AppColors.income       = #34C759  // green
-AppColors.expense      = #FF6B6B  // red
-AppColors.charity      = #AF52DE  // purple
+AppColors.primaryDeep  = #7C3AED  // purple
+AppColors.primaryLight = #EDE9FE  // light purple bg
+AppColors.accent       = #84CC16  // lime
+AppColors.income       = #16A34A  // green
+AppColors.expense      = #EF4444  // red
+AppColors.charity      = #9333EA  // purple
 ```
 Always use `AppColors.*` constants — do not hardcode hex values in views.
+
+## Money input/conversion rules
+- Parse user-typed amounts ONLY via `Decimal(userInput:)` (handles "," decimal separator) — never `Decimal(string:)`
+- Convert API doubles (Plaid etc.) ONLY via `Decimal(money:)` (2dp bankers rounding)
+- All SwiftData model properties MUST have inline default values (CloudKit requirement) — `var x: Decimal = 0`, not just init defaults
+
+## Tab rule
+Exactly 5 tabs: Dashboard → Spending → Plans → Analytics → Settings.
+A 6th tab triggers the iOS "More" menu (regression fixed twice). Wallets lives in Settings > Wallets & Transfers; Charity history in Settings > Charity.
 
 ## SwiftData schema (all models registered in ModelContainer)
 `IncomeEntry`, `ExpenseEntry`, `CharityAccrual`, `CharityPayment`,

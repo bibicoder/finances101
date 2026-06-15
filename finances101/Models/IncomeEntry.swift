@@ -29,18 +29,20 @@ enum IncomeStatus: String, Codable, CaseIterable {
 
 @Model
 final class IncomeEntry: Identifiable {
-    var id: UUID
-    var title: String
-    var amount: Decimal
-    var earnedDate: Date
-    var payoutDate: Date
-    var status: IncomeStatus
-    var category: String
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var title: String = ""
+    var amount: Decimal = 0
+    var earnedDate: Date = Date()
+    var payoutDate: Date = Date()
+    var status: IncomeStatus = IncomeStatus.earned
+    var category: String = "General"
     var note: String?
-    var isRecurring: Bool
+    var isRecurring: Bool = false
     var recurringTemplateId: UUID?
     var walletId: UUID?
-    var createdAt: Date
+    var externalId: String?   // e.g. Plaid transaction_id — used to skip duplicate imports
+    var createdAt: Date = Date()
 
     init(
         id: UUID = UUID(),
@@ -53,7 +55,8 @@ final class IncomeEntry: Identifiable {
         note: String? = nil,
         isRecurring: Bool = false,
         recurringTemplateId: UUID? = nil,
-        walletId: UUID? = nil
+        walletId: UUID? = nil,
+        externalId: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -66,6 +69,7 @@ final class IncomeEntry: Identifiable {
         self.isRecurring = isRecurring
         self.recurringTemplateId = recurringTemplateId
         self.walletId = walletId
+        self.externalId = externalId
         self.createdAt = Date()
     }
 }

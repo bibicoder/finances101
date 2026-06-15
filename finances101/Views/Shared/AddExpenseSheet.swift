@@ -33,11 +33,11 @@ struct AddExpenseSheet: View {
     }
 
     private var parsedAmount: Decimal? {
-        Decimal(string: amount.trimmingCharacters(in: .whitespaces))
+        Decimal(userInput: amount)
     }
 
     private var splitTotal: Decimal {
-        splitRows.compactMap { Decimal(string: $0.amount.trimmingCharacters(in: .whitespaces)) }.reduce(0, +)
+        splitRows.compactMap { Decimal(userInput: $0.amount) }.reduce(0, +)
     }
 
     private var splitRemaining: Decimal {
@@ -47,7 +47,7 @@ struct AddExpenseSheet: View {
     private var isSplitValid: Bool {
         guard isSplit, let total = parsedAmount, total > 0 else { return true }
         return splitRows.count >= 2 &&
-               splitRows.allSatisfy { (Decimal(string: $0.amount) ?? 0) > 0 } &&
+               splitRows.allSatisfy { (Decimal(userInput: $0.amount) ?? 0) > 0 } &&
                splitTotal == total
     }
 
@@ -344,7 +344,7 @@ struct AddExpenseSheet: View {
 
         if isSplit {
             for row in splitRows {
-                guard let splitAmount = Decimal(string: row.amount.trimmingCharacters(in: .whitespaces)),
+                guard let splitAmount = Decimal(userInput: row.amount),
                       splitAmount > 0 else { continue }
                 let entry = ExpenseEntry(
                     title: title,

@@ -17,37 +17,42 @@ struct SpendingView: View {
     @State private var selectedPeriod: TimePeriod = .month
     @State private var selectedMonth = Date()
     @State private var showBudget = false
-    
+    @State private var expandedWeeks: Set<Date> = [Calendar.current.startOfWeek(for: Date())]
+
+    // Derived data is computed once into @State (on appear / data or period change),
+    // not on every render — the daily balance loop + 7 SwiftData fetches were re-running
+    // on every scroll frame.
+    @State private var balancePoints: [BalanceDataPoint] = []
+    @State private var categoryData: [CategoryData] = []
+    @State private var periodData: (earnings: Decimal, spending: Decimal) = (0, 0)
+    @State private var weeks: [WeekSpendingGroup] = []
+
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
     }
-    
-    private var initialBalance: Decimal {
-        settings.first?.initialBalance ?? 0
+
+    private var dataVersion: String {
+        let paid = incomes.filter { $0.status == .paid }.count + expenses.filter { $0.status == .paid }.count
+        let amt = expenses.reduce(into: Decimal(0)) { $0 += $1.amount }
+        return "\(incomes.count),\(expenses.count),\(paid),\(amt),\(settings.first?.plaidCashBalance ?? 0)"
     }
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     periodSelector
-                    
+
                     if selectedPeriod == .month {
                         monthSelector
                     }
-                    
+
                     metricsSection
-                    
-                    BalanceChartView(
-                        dataPoints: generateBalanceData(),
-                        symbol: currencySymbol
-                    )
-                    
-                    CategoryPieChart(
-                        data: generateCategoryData(),
-                        symbol: currencySymbol
-                    )
-                    
+
+                    BalanceChartView(dataPoints: balancePoints, symbol: currencySymbol)
+
+                    CategoryPieChart(data: categoryData, symbol: currencySymbol)
+
                     transactionsSection
                 }
                 .padding()
@@ -67,7 +72,18 @@ struct SpendingView: View {
             .sheet(isPresented: $showBudget) {
                 BudgetView()
             }
+            .onAppear { recompute() }
+            .onChange(of: dataVersion) { _, _ in recompute() }
+            .onChange(of: selectedPeriod) { _, _ in recompute() }
+            .onChange(of: selectedMonth) { _, _ in recompute() }
         }
+    }
+
+    private func recompute() {
+        periodData = calculatePeriodData()
+        balancePoints = generateBalanceData()
+        categoryData = generateCategoryData()
+        weeks = weekGroups()
     }
     
     private var periodSelector: some View {
@@ -108,9 +124,7 @@ struct SpendingView: View {
     }
     
     private var metricsSection: some View {
-        let periodData = calculatePeriodData()
-        
-        return VStack(spacing: 12) {
+        VStack(spacing: 12) {
             HStack(spacing: 12) {
                 MetricCard(
                     title: "Earnings",
@@ -139,26 +153,117 @@ struct SpendingView: View {
     
     private var transactionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Transactions")
+            Text("Transactions")
                 .font(.headline)
-            
-            let filteredExpenses = filterExpenses()
-            
-            if filteredExpenses.isEmpty {
+
+            let groups = weeks
+
+            if groups.isEmpty {
                 Text("No transactions for this period")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding()
             } else {
-                ForEach(filteredExpenses.prefix(10)) { expense in
-                    TransactionRow(expense: expense, symbol: currencySymbol)
+                VStack(spacing: 0) {
+                    ForEach(groups) { group in
+                        weekRow(group)
+                        if group.id != groups.last?.id {
+                            Divider()
+                        }
+                    }
                 }
             }
         }
         .padding()
         .appCard()
     }
-    
+
+    // MARK: - Week grouping
+
+    private struct WeekSpendingGroup: Identifiable {
+        let weekStart: Date
+        let label: String
+        let expenses: [ExpenseEntry]
+        var id: Date { weekStart }
+        var total: Decimal { expenses.reduce(0) { $0 + $1.amount } }
+    }
+
+    /// Past + current weeks of the selected period, newest first.
+    private func weekGroups() -> [WeekSpendingGroup] {
+        let cal = Calendar.current
+        let currentWeekStart = cal.startOfWeek(for: Date())
+        let byWeek = Dictionary(grouping: filterExpenses().filter { $0.dueDate <= Date() }) {
+            cal.startOfWeek(for: $0.dueDate)
+        }
+        return byWeek.keys
+            .filter { $0 <= currentWeekStart }
+            .sorted(by: >)
+            .map { start in
+                let end = cal.date(byAdding: .day, value: 7, to: start) ?? start
+                return WeekSpendingGroup(
+                    weekStart: start,
+                    label: PlanWeek(startDate: start, endDate: end).label,
+                    expenses: (byWeek[start] ?? []).sorted { $0.dueDate > $1.dueDate }
+                )
+            }
+    }
+
+    @ViewBuilder
+    private func weekRow(_ group: WeekSpendingGroup) -> some View {
+        let isExpanded = expandedWeeks.contains(group.weekStart)
+
+        Button {
+            HapticManager.selection()
+            withAnimation(.snappy(duration: 0.25)) {
+                if isExpanded {
+                    expandedWeeks.remove(group.weekStart)
+                } else {
+                    expandedWeeks.insert(group.weekStart)
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+
+                Text(group.label)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+
+                Text("\(group.expenses.count)")
+                    .font(.system(size: 11, weight: .bold).monospacedDigit())
+                    .foregroundStyle(AppColors.textSecondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(AppColors.divider.opacity(0.6))
+                    .clipShape(Capsule())
+
+                Spacer()
+
+                Text("-\(currencySymbol)\(group.total.formatted())")
+                    .font(.system(size: 14, weight: .bold).monospacedDigit())
+                    .foregroundStyle(AppColors.expense)
+            }
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+
+        if isExpanded {
+            VStack(spacing: 0) {
+                ForEach(group.expenses) { expense in
+                    TransactionRow(expense: expense, symbol: currencySymbol)
+                        .padding(.leading, 22)
+                }
+            }
+            .padding(.bottom, 8)
+            .transition(.opacity)
+        }
+    }
+
+
     private func calculatePeriodData() -> (earnings: Decimal, spending: Decimal) {
         let (startDate, endDate) = getDateRange()
         
@@ -199,39 +304,51 @@ struct SpendingView: View {
     
     private func generateBalanceData() -> [BalanceDataPoint] {
         let calendar = Calendar.current
-        let today = Date()
-        var dataPoints: [BalanceDataPoint] = []
-        var runningBalance = initialBalance
-        
-        let allTransactions = getAllTransactionsSorted()
-        
+        let today = calendar.startOfDay(for: Date())
+
         let (periodStart, periodEnd) = getDateRange()
-        let chartStart = calendar.date(byAdding: .day, value: -14, to: periodStart) ?? periodStart
-        let chartEnd = calendar.date(byAdding: .day, value: 14, to: periodEnd) ?? periodEnd
-        
+        let chartStart = calendar.startOfDay(for: calendar.date(byAdding: .day, value: -14, to: periodStart) ?? periodStart)
+        let chartEnd = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 14, to: periodEnd) ?? periodEnd)
+
+        // Bucket every transaction into its day once — O(n) — instead of scanning all
+        // transactions for each day in the range (which was O(days × transactions)).
+        var dailyDelta: [Date: Decimal] = [:]
+        for tx in getAllTransactionsSorted() {
+            let day = calendar.startOfDay(for: tx.date)
+            dailyDelta[day, default: 0] += tx.amount
+        }
+
+        var dataPoints: [BalanceDataPoint] = []
+        var runningBalance = Decimal(0)
+        var todayBalance: Decimal = 0
         var currentDate = chartStart
         while currentDate <= chartEnd {
-            let dayTransactions = allTransactions.filter {
-                calendar.isDate($0.date, inSameDayAs: currentDate)
-            }
-            
-            for transaction in dayTransactions {
-                runningBalance += transaction.amount
-            }
-            
-            let isPredicted = currentDate > today
-            dataPoints.append(BalanceDataPoint(
-                date: currentDate,
-                balance: runningBalance,
-                isPredicted: isPredicted
-            ))
-            
+            runningBalance += dailyDelta[currentDate] ?? 0
+            if currentDate == today { todayBalance = runningBalance }
+            dataPoints.append(BalanceDataPoint(date: currentDate, balance: runningBalance, isPredicted: currentDate > today))
             currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
         }
-        
-        return dataPoints
+
+        // Anchor the curve so today equals the real balance (bank + wallets + crypto + cash),
+        // instead of a ledger sum that starts from an arbitrary zero and drifts negative.
+        let realToday = BalanceCalculator(modelContext: modelContext).actualBalance()
+        let offset = realToday - todayBalance
+        let anchored = dataPoints.map {
+            BalanceDataPoint(date: $0.date, balance: $0.balance + offset, isPredicted: $0.isPredicted)
+        }
+        return downsample(anchored, maxPoints: 90)
     }
-    
+
+    /// Keep charts smooth on long ranges (Year ≈ 390 daily points) by thinning to
+    /// at most `maxPoints`, always keeping the first and last point.
+    private func downsample(_ points: [BalanceDataPoint], maxPoints: Int) -> [BalanceDataPoint] {
+        guard points.count > maxPoints else { return points }
+        let stride = Int((Double(points.count) / Double(maxPoints)).rounded(.up))
+        var result = points.enumerated().compactMap { $0.offset % stride == 0 ? $0.element : nil }
+        if let last = points.last, result.last?.id != last.id { result.append(last) }
+        return result
+    }
+
     private func getAllTransactionsSorted() -> [(date: Date, amount: Decimal)] {
         var transactions: [(date: Date, amount: Decimal)] = []
         

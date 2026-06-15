@@ -12,7 +12,30 @@ struct AnalyticsView: View {
     private var currencySymbol: String {
         settings.first?.currencySymbol ?? "$"
     }
-    
+
+    // All derived analytics are computed once into @State (on appear / data change),
+    // never inside the body. Recomputing dozens of O(n) filters + 7 SwiftData fetches
+    // on every render/scroll frame was the source of the lag.
+    @State private var currentBalance: Decimal = 0
+    @State private var totalDebt: Decimal = 0
+    @State private var netWorthPoints: [NetWorthPoint] = []
+    @State private var monthlyTrends: [MonthlyTrendData] = []
+    @State private var categoryTotals: [(category: String, amount: Decimal, percentage: Double)] = []
+    @State private var totals: (income: Decimal, expense: Decimal) = (0, 0)
+    @State private var projection: (income: Decimal, expenses: Decimal) = (0, 0)
+    @State private var yoy: [YoYMonth] = []
+    @State private var avgMonthly: Decimal = 0
+    @State private var forecast: [ForecastPoint] = []
+
+    private var netWorth: Decimal { currentBalance - totalDebt }
+
+    // Lightweight change signature: re-run recompute() only when the data actually moved.
+    private var dataVersion: String {
+        let paid = incomes.filter { $0.status == .paid }.count + expenses.filter { $0.status == .paid }.count
+        let amt = incomes.reduce(into: Decimal(0)) { $0 += $1.amount } + expenses.reduce(into: Decimal(0)) { $0 += $1.amount }
+        return "\(incomes.count),\(expenses.count),\(debts.count),\(paid),\(amt),\(settings.first?.plaidCashBalance ?? 0)"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -21,7 +44,7 @@ struct AnalyticsView: View {
                     savingsRateSection
                     savingsForecastSection
                     yearOverYearSection
-                    TrendChartView(data: generateMonthlyTrends(), symbol: currencySymbol)
+                    TrendChartView(data: monthlyTrends, symbol: currencySymbol)
                     incomeVsSpendingSection
                     topCategoriesSection
                     futureProjectionSection
@@ -30,23 +53,26 @@ struct AnalyticsView: View {
             }
             .screenBackground()
             .navigationTitle("Analytics")
+            .onAppear { recompute() }
+            .onChange(of: dataVersion) { _, _ in recompute() }
         }
     }
-    
+
+    private func recompute() {
+        currentBalance = BalanceCalculator(modelContext: modelContext).actualBalance()
+        totalDebt = debts.reduce(Decimal(0)) { $0 + $1.remainingAmount }
+        totals = calculateTotals()
+        projection = calculateProjection()
+        categoryTotals = calculateCategoryTotals()
+        monthlyTrends = generateMonthlyTrends()
+        yoy = yoyData()
+        avgMonthly = averageMonthlySavings()
+        // These depend on the freshly computed balance/debt above
+        netWorthPoints = computeNetWorthHistory(currentBalance: currentBalance, totalDebt: totalDebt)
+        forecast = computeForecast(base: currentBalance, avgMonthly: avgMonthly)
+    }
+
     // MARK: Net Worth
-
-    private var totalDebt: Decimal {
-        debts.reduce(Decimal(0)) { $0 + $1.remainingAmount }
-    }
-
-    private var currentBalance: Decimal {
-        let initial = settings.first?.initialBalance ?? 0
-        let paidIncome = incomes.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
-        let paidExpense = expenses.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
-        return initial + paidIncome - paidExpense
-    }
-
-    private var netWorth: Decimal { currentBalance - totalDebt }
 
     private var netWorthSection: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -109,13 +135,13 @@ struct AnalyticsView: View {
             }
 
             // 6-month chart
-            if !netWorthHistory().isEmpty {
+            if !netWorthPoints.isEmpty {
                 Divider()
                 Text("6-Month Trend")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Chart(netWorthHistory()) { point in
+                Chart(netWorthPoints) { point in
                     LineMark(
                         x: .value("Month", point.month, unit: .month),
                         y: .value("Net Worth", Double(truncating: point.value as NSDecimalNumber))
@@ -167,11 +193,17 @@ struct AnalyticsView: View {
         let value: Decimal
     }
 
-    private func netWorthHistory() -> [NetWorthPoint] {
+    private func computeNetWorthHistory(currentBalance: Decimal, totalDebt: Decimal) -> [NetWorthPoint] {
         let calendar = Calendar.current
         let today = Date()
         var points: [NetWorthPoint] = []
-        let initial = settings.first?.initialBalance ?? 0
+
+        // Anchor: shift the ledger-simulated series so the latest month equals the
+        // real net worth (real balance − debt), matching the headline figure.
+        let totalIncome = incomes.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
+        let totalExpense = expenses.filter { $0.status == .paid }.reduce(Decimal(0)) { $0 + $1.amount }
+        let ledgerNow = totalIncome - totalExpense
+        let offsetToReal = currentBalance - ledgerNow
 
         for offset in -5...0 {
             guard let monthStart = calendar.date(byAdding: .month, value: offset, to: today),
@@ -186,7 +218,7 @@ struct AnalyticsView: View {
                 .filter { $0.status == .paid && $0.dueDate < nextMonth }
                 .reduce(Decimal(0)) { $0 + $1.amount }
 
-            let balanceAtMonth = initial + cumulativeIncome - cumulativeExpense
+            let balanceAtMonth = offsetToReal + cumulativeIncome - cumulativeExpense
             let nwAtMonth = balanceAtMonth - totalDebt
             points.append(NetWorthPoint(month: monthDate, value: nwAtMonth))
         }
@@ -225,8 +257,6 @@ struct AnalyticsView: View {
             Text("Top Spending Categories")
                 .font(.headline)
             
-            let categoryTotals = calculateCategoryTotals()
-            
             if categoryTotals.isEmpty {
                 Text("No spending data yet")
                     .foregroundStyle(.secondary)
@@ -251,9 +281,9 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Income vs Spending")
                 .font(.headline)
-            
-            let (totalIncome, totalExpense) = calculateTotals()
-            
+
+            let (totalIncome, totalExpense) = totals
+
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Total Income")
@@ -301,8 +331,8 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Savings Rate")
                 .font(.headline)
-            
-            let (totalIncome, totalExpense) = calculateTotals()
+
+            let (totalIncome, totalExpense) = totals
             let savings = totalIncome - totalExpense
             let rate = totalIncome > 0 ? Double(truncating: (savings / totalIncome * 100) as NSDecimalNumber) : 0
             
@@ -337,9 +367,7 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("30-Day Projection")
                 .font(.headline)
-            
-            let projection = calculateProjection()
-            
+
             VStack(spacing: 16) {
                 HStack {
                     Label("Expected Income", systemImage: "arrow.down.circle.fill")
@@ -461,7 +489,7 @@ struct AnalyticsView: View {
     }
 
     private var yearOverYearSection: some View {
-        let data = yoyData()
+        let data = yoy
         let currentYear = Calendar.current.component(.year, from: Date())
         let hasData = data.contains { $0.thisYear > 0 || $0.lastYear > 0 }
 
@@ -583,10 +611,8 @@ struct AnalyticsView: View {
         return totalSavings / Decimal(monthsWithData)
     }
 
-    private func forecastPoints() -> [ForecastPoint] {
-        let avgMonthly = averageMonthlySavings()
-        let base = currentBalance
-        return [
+    private func computeForecast(base: Decimal, avgMonthly: Decimal) -> [ForecastPoint] {
+        [
             ForecastPoint(label: "3 mo", months: 3, amount: base + avgMonthly * 3),
             ForecastPoint(label: "6 mo", months: 6, amount: base + avgMonthly * 6),
             ForecastPoint(label: "12 mo", months: 12, amount: base + avgMonthly * 12),
@@ -594,8 +620,7 @@ struct AnalyticsView: View {
     }
 
     private var savingsForecastSection: some View {
-        let avgMonthly = averageMonthlySavings()
-        let points = forecastPoints()
+        let points = forecast
         let isPositive = avgMonthly >= 0
 
         return VStack(alignment: .leading, spacing: 16) {

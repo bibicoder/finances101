@@ -40,12 +40,18 @@ struct PlaidImportView: View {
         accounts.filter { $0.type == "credit" }
     }
 
+    // Real spendable cash (available), not the statement/current balance
     private var totalDepositoryBalance: Decimal {
-        depositoryAccounts.compactMap { $0.balances.current.map { Decimal($0) } }.reduce(0, +)
+        PlaidSyncService.spendableCash(of: accounts)
     }
 
     private var totalCreditOwed: Decimal {
-        creditAccounts.compactMap { $0.balances.current.map { Decimal($0) } }.reduce(0, +)
+        PlaidSyncService.creditOwed(of: accounts)
+    }
+
+    // Plaid transaction_ids already saved in the store — skip them on re-import
+    private func existingExternalIds() -> Set<String> {
+        PlaidSyncService.existingExternalIds(modelContext: modelContext)
     }
 
     var body: some View {
@@ -148,44 +154,68 @@ struct PlaidImportView: View {
     }
 
     private func load() async {
-        guard let token = PlaidManager.shared.accessToken() else {
+        let connections = PlaidManager.shared.connections
+        guard !connections.isEmpty else {
             errorMessage = "No bank connected"
             return
         }
         isLoading = true
         errorMessage = nil
-        do {
-            async let fetchedAccounts = PlaidService.fetchAccounts(accessToken: token)
-            async let fetchedTxs = PlaidService.fetchTransactions(accessToken: token, days: selectedDays)
 
-            let (accs, plaidTxs) = try await (fetchedAccounts, fetchedTxs)
-            accounts = accs
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        let alreadyImported = existingExternalIds()
 
-            let fmt = DateFormatter()
-            fmt.dateFormat = "yyyy-MM-dd"
+        var allAccounts: [PlaidAccount] = []
+        var allTransactions: [ImportTransaction] = []
+        var failures: [String] = []
 
-            transactions = plaidTxs
-                .filter { !$0.pending }
-                .compactMap { tx -> ImportTransaction? in
-                    guard let date = fmt.date(from: tx.date) else { return nil }
-                    return ImportTransaction(
-                        plaidId: tx.transactionId,
-                        date: date,
-                        name: tx.merchantName ?? tx.name,
-                        amount: Decimal(abs(tx.amount)),
-                        isExpense: tx.amount > 0,
-                        category: mapCategory(tx.category)
-                    )
-                }
-                .sorted { $0.date > $1.date }
-        } catch {
-            errorMessage = error.localizedDescription
+        // Aggregate every linked institution
+        for connection in connections {
+            do {
+                async let fetchedAccounts = PlaidService.fetchAccounts(accessToken: connection.accessToken)
+                async let fetchedTxs = PlaidService.fetchTransactions(accessToken: connection.accessToken, days: selectedDays)
+                let (accs, plaidTxs) = try await (fetchedAccounts, fetchedTxs)
+
+                // Remember this bank's balances so the dashboard can show it by name
+                PlaidManager.shared.updateSyncedBalances(
+                    id: connection.id,
+                    cash: PlaidSyncService.spendableCash(of: accs),
+                    credit: PlaidSyncService.creditOwed(of: accs)
+                )
+
+                allAccounts.append(contentsOf: accs)
+                allTransactions.append(contentsOf: plaidTxs
+                    .filter { !$0.pending && !alreadyImported.contains($0.transactionId) }
+                    .compactMap { tx -> ImportTransaction? in
+                        guard let date = fmt.date(from: tx.date) else { return nil }
+                        return ImportTransaction(
+                            plaidId: tx.transactionId,
+                            date: date,
+                            name: tx.merchantName ?? tx.name,
+                            amount: Decimal(money: abs(tx.amount)),
+                            isExpense: tx.amount > 0,
+                            category: PlaidSyncService.mapCategory(tx.category, name: tx.merchantName ?? tx.name)
+                        )
+                    })
+            } catch {
+                failures.append("\(connection.institutionName): \(error.localizedDescription)")
+            }
+        }
+
+        if allAccounts.isEmpty && !failures.isEmpty {
+            errorMessage = failures.joined(separator: "\n")
+        } else {
+            accounts = allAccounts
+            transactions = allTransactions.sorted { $0.date > $1.date }
         }
         isLoading = false
     }
 
     private func importSelected() {
-        let selected = transactions.filter(\.isSelected)
+        // Double-check against the store so re-importing never duplicates entries
+        let alreadyImported = existingExternalIds()
+        let selected = transactions.filter { $0.isSelected && !alreadyImported.contains($0.plaidId) }
         importedCount = selected.count
 
         for tx in selected {
@@ -196,7 +226,8 @@ struct PlaidImportView: View {
                     dueDate: tx.date,
                     category: tx.category,
                     type: .optional,
-                    status: .paid
+                    status: .paid,
+                    externalId: tx.plaidId
                 )
                 modelContext.insert(entry)
             } else {
@@ -206,31 +237,22 @@ struct PlaidImportView: View {
                     earnedDate: tx.date,
                     payoutDate: tx.date,
                     status: .paid,
-                    category: tx.category
+                    category: tx.category,
+                    externalId: tx.plaidId
                 )
                 modelContext.insert(entry)
             }
         }
 
-        // Sync balance using ALL paid transactions (including just-inserted ones).
-        // BalanceCalculator: actualBalance = initialBalance + sumPaidIncome - sumPaidExpenses - charityPaid
-        // We want actualBalance = bankCashBalance (sum of ALL checking + savings accounts)
-        // So: initialBalance = bankCashBalance - sumPaidIncome + sumPaidExpenses
-        // (charity is excluded since Plaid doesn't track it)
-        if !depositoryAccounts.isEmpty, let appSettings = settings.first {
-            let bankCashBalance = totalDepositoryBalance
-            let allPaidIncome = (try? modelContext.fetch(FetchDescriptor<IncomeEntry>()))?
-                .filter { $0.status == .paid }
-                .reduce(0) { $0 + $1.amount } ?? 0
-            let allPaidExpenses = (try? modelContext.fetch(FetchDescriptor<ExpenseEntry>()))?
-                .filter { $0.status == .paid }
-                .reduce(0) { $0 + $1.amount } ?? 0
-            appSettings.initialBalance = bankCashBalance - allPaidIncome + allPaidExpenses
-            appSettings.plaidCashBalance = bankCashBalance
-            appSettings.plaidCreditBalance = totalCreditOwed
-            appSettings.plaidSyncedAt = Date()
-            appSettings.updatedAt = Date()
-            syncedBalance = bankCashBalance
+        // Re-anchor so Total Balance == real bank cash + manual wallets.
+        // One shared equation lives in PlaidSyncService (handles charity + wallets correctly).
+        if !depositoryAccounts.isEmpty {
+            PlaidSyncService.reanchorBalance(
+                bankCash: totalDepositoryBalance,
+                bankCredit: totalCreditOwed,
+                modelContext: modelContext
+            )
+            syncedBalance = totalDepositoryBalance
         }
 
         modelContext.saveWithLogging()
@@ -238,18 +260,6 @@ struct PlaidImportView: View {
         showDoneAlert = true
     }
 
-    private func mapCategory(_ categories: [String]?) -> String {
-        switch categories?.first {
-        case "Food and Drink": return "Food"
-        case "Travel": return "Transport"
-        case "Shops": return "Shopping"
-        case "Recreation": return "Entertainment"
-        case "Healthcare": return "Health"
-        case "Payment", "Transfer": return "Transfer"
-        case "Service": return "Services"
-        default: return "General"
-        }
-    }
 }
 
 // MARK: - Account Balance Row
@@ -259,8 +269,14 @@ private struct AccountBalanceRow: View {
     let symbol: String
     let isDebt: Bool
 
-    private var balance: Decimal {
-        account.balances.current.map { Decimal($0) } ?? 0
+    // Real money = available (what you can spend); fall back to current if missing
+    private var spendable: Decimal {
+        (account.balances.available ?? account.balances.current).map { Decimal(money: $0) } ?? 0
+    }
+
+    // Statement/current balance — shown small, may differ from available (pending holds)
+    private var current: Decimal {
+        account.balances.current.map { Decimal(money: $0) } ?? 0
     }
 
     var body: some View {
@@ -276,7 +292,7 @@ private struct AccountBalanceRow: View {
                 Text(account.name)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                Text(isDebt ? "Credit card — balance owed" : "Checking / Savings")
+                Text(isDebt ? "Credit card — balance owed" : "Available to spend")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -284,12 +300,13 @@ private struct AccountBalanceRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(isDebt ? "-" : "")\(symbol)\(balance.formatted())")
+                Text("\(isDebt ? "-" : "")\(symbol)\((isDebt ? current : spendable).formatted())")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(isDebt ? AppColors.expense : AppColors.income)
-                if let available = account.balances.available {
-                    Text("avail: \(symbol)\(Decimal(available).formatted())")
+                // Only show the statement balance when it differs from available
+                if !isDebt, current != spendable {
+                    Text("statement: \(symbol)\(current.formatted())")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

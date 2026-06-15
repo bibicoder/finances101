@@ -116,7 +116,7 @@ struct EditExpenseSheet: View {
     }
     
     private func saveChanges() {
-        guard let amountDecimal = Decimal(string: amount) else { return }
+        guard let amountDecimal = Decimal(userInput: amount) else { return }
         
         expense.title = title
         expense.amount = amountDecimal

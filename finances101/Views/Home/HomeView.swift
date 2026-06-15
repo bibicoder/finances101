@@ -12,6 +12,9 @@ struct HomeView: View {
     @Query private var subscriptions: [Subscription]
     @Query private var charityAccruals: [CharityAccrual]
     @Query private var charityPayments: [CharityPayment]
+    @Query(sort: \Wallet.sortOrder) private var wallets: [Wallet]
+    @Query private var walletTransfers: [WalletTransfer]
+    @State private var plaidManager = PlaidManager.shared
 
     @State private var showAddIncome = false
     @State private var showAddExpense = false
@@ -24,10 +27,17 @@ struct HomeView: View {
     @State private var confettiTrigger = 0
 
     private var currencySymbol: String { settings.first?.currencySymbol ?? "$" }
-    private var charityEnabled: Bool { (settings.first?.charityPercentage ?? 0) > 0 }
+    private var charityEnabled: Bool { settings.first?.isCharityActive ?? false }
 
+    // Includes amount/status sums so edits (not just inserts/deletes) trigger a refresh
     private var collectionVersion: String {
-        "\(incomes.count),\(expenses.count),\(debts.count),\(budgets.count),\(subscriptions.count),\(charityAccruals.count),\(charityPayments.count)"
+        let incomeSig  = incomes.reduce(into: Decimal(0))  { $0 += $1.amount }
+        let expenseSig = expenses.reduce(into: Decimal(0)) { $0 += $1.amount }
+        let paidCount  = incomes.filter { $0.status == .paid }.count + expenses.filter { $0.status == .paid }.count
+        let walletSig  = wallets.reduce(into: Decimal(0)) { $0 += $1.initialBalance + ($1.cryptoBalanceUSD ?? 0) }
+        let transferSig = walletTransfers.reduce(into: Decimal(0)) { $0 += $1.amount }
+        let plaidSig = "\(settings.first?.plaidCashBalance ?? 0),\(settings.first?.plaidSyncedAt?.timeIntervalSince1970 ?? 0)"
+        return "\(incomes.count),\(expenses.count),\(debts.count),\(budgets.count),\(subscriptions.count),\(charityAccruals.count),\(charityPayments.count),\(incomeSig),\(expenseSig),\(paidCount),\(settings.first?.initialBalance ?? 0),\(wallets.count),\(walletSig),\(walletTransfers.count),\(transferSig),\(plaidSig)"
     }
 
     var body: some View {
@@ -57,6 +67,13 @@ struct HomeView: View {
             }
             .screenBackground()
             .navigationBarHidden(true)
+            .refreshable {
+                // Pull-to-refresh: bank sync + on-chain crypto refresh, then recompute
+                await PlaidSyncService.syncAll(modelContext: modelContext)
+                await CryptoService.refreshAll(wallets)
+                modelContext.saveWithLogging()
+                refreshBalances()
+            }
             .onAppear { refreshBalances() }
             .onChange(of: collectionVersion)  { _, _ in refreshBalances() }
             .onChange(of: incomes.count)      { old, new in if new > old { confettiTrigger += 1 } }
@@ -65,7 +82,7 @@ struct HomeView: View {
             .sheet(isPresented: $showAddCharityPayment)  { AddCharityPaymentSheet() }
             .sheet(isPresented: $showBreakdown) {
                 BalanceBreakdownSheet(
-                    balanceData: balanceData ?? BalanceData(actualBalance: 0, safeToSpend: 0, charityOwed: 0, incomingSoon: 0, plannedOutflow: 0),
+                    balanceData: balanceData ?? BalanceData.empty,
                     symbol: currencySymbol
                 )
             }
@@ -113,7 +130,7 @@ struct HomeView: View {
     // MARK: - Hero Balance Card
 
     private var heroBalanceCard: some View {
-        let data = balanceData ?? BalanceData(actualBalance: 0, safeToSpend: 0, charityOwed: 0, incomingSoon: 0, plannedOutflow: 0)
+        let data = balanceData ?? BalanceData.empty
 
         return Button { showBreakdown = true } label: {
             ZStack(alignment: .topTrailing) {
@@ -135,14 +152,25 @@ struct HomeView: View {
                         font: .system(size: 40, weight: .heavy).monospacedDigit(),
                         color: .white
                     )
-                    .padding(.bottom, 20)
+                    .padding(.bottom, walletChipsVisible ? 10 : 20)
+
+                    if walletChipsVisible {
+                        walletChipsRow
+                            .padding(.bottom, 16)
+                    }
+
+                    Text("THIS WEEK")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(.white.opacity(0.55))
+                        .padding(.bottom, 8)
 
                     HStack(spacing: 10) {
-                        HeroStat(label: "Income", value: data.incomingSoon, symbol: currencySymbol, isPositive: true)
+                        HeroStat(label: "Received", value: data.weekIncome, symbol: currencySymbol, isPositive: true)
                         Rectangle().fill(.white.opacity(0.2)).frame(width: 1, height: 36)
-                        HeroStat(label: "Spent", value: data.plannedOutflow, symbol: currencySymbol, isPositive: false)
+                        HeroStat(label: "Spent", value: data.weekSpent, symbol: currencySymbol, isPositive: false)
                         Rectangle().fill(.white.opacity(0.2)).frame(width: 1, height: 36)
-                        HeroStat(label: "Saved", value: data.incomingSoon - data.plannedOutflow, symbol: currencySymbol, isPositive: nil)
+                        HeroStat(label: "Saved", value: data.weekSaved, symbol: currencySymbol, isPositive: nil)
                     }
                     .padding(.horizontal, 8)
                 }
@@ -157,15 +185,46 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
+    // Where the money lies: one chip per linked bank + one chip per wallet, on the hero card
+    private var walletChipsVisible: Bool { !wallets.isEmpty || plaidManager.hasSyncedBalances }
+
+    private var walletChipsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(plaidManager.connections.filter { $0.syncedAt != nil }) { bank in
+                    let cash = bank.cashBalance ?? 0
+                    MoneyChip(
+                        icon: "building.columns.fill",
+                        name: bank.displayName,
+                        amount: cash,
+                        symbol: currencySymbol
+                    )
+                }
+                ForEach(wallets) { wallet in
+                    let balance = WalletBalanceCalculator.balance(
+                        of: wallet, incomes: incomes, expenses: expenses, transfers: walletTransfers
+                    )
+                    MoneyChip(
+                        icon: wallet.iconName,
+                        name: wallet.name,
+                        amount: balance,
+                        symbol: currencySymbol
+                    )
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
     // MARK: - Quick Stats (2x2 grid)
 
     private var quickStatsGrid: some View {
-        let data = balanceData ?? BalanceData(actualBalance: 0, safeToSpend: 0, charityOwed: 0, incomingSoon: 0, plannedOutflow: 0)
+        let data = balanceData ?? BalanceData.empty
 
         return VStack(spacing: 10) {
             SafeToSpendBar(
                 amount: data.safeToSpend,
-                plannedOutflow: data.plannedOutflow,
+                plannedOutflow: data.weekPlanned,
                 symbol: currencySymbol
             )
             HStack(spacing: 10) {
@@ -173,6 +232,10 @@ struct HomeView: View {
                                color: AppColors.income, icon: "arrow.down.circle.fill")
                 QuickStatsCard(title: "Outflow", amount: data.plannedOutflow, symbol: currencySymbol,
                                color: AppColors.expense, icon: "arrow.up.circle.fill")
+            }
+            if data.savingsSetAside > 0 {
+                QuickStatsCard(title: "Set Aside (Savings)", amount: data.savingsSetAside, symbol: currencySymbol,
+                               color: AppColors.savings, icon: "lock.fill")
             }
             if charityEnabled {
                 QuickStatsCard(title: "Charity", amount: data.charityOwed, symbol: currencySymbol,
@@ -344,7 +407,8 @@ struct HomeView: View {
         let calculator = BalanceCalculator(
             incomes: incomes, expenses: expenses,
             accruals: charityAccruals, payments: charityPayments,
-            settings: settings.first
+            settings: settings.first,
+            wallets: wallets, transfers: walletTransfers
         )
         let data = calculator.calculateAll()
         balanceData = data
@@ -356,13 +420,39 @@ struct HomeView: View {
         healthScore = HealthScoreCalculator.calculate(
             incomes: incomes, expenses: expenses, debts: debts,
             accruals: charityAccruals, payments: charityPayments,
-            settings: settings.first
+            settings: settings.first, actualBalance: data.actualBalance
         )
         insights = FinancialInsightEngine.generate(
             incomes: incomes, expenses: expenses, debts: debts,
             budgets: budgets, subscriptions: subscriptions,
             charityOwed: data.charityOwed, symbol: currencySymbol
         )
+    }
+}
+
+// MARK: - Money chip (bank / wallet) on the hero card
+
+private struct MoneyChip: View {
+    let icon: String
+    let name: String
+    let amount: Decimal
+    let symbol: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(name)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+            Text("\(amount < 0 ? "-" : "")\(symbol)\(abs(amount).formatted())")
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(.white.opacity(0.14))
+        .clipShape(Capsule())
     }
 }
 
@@ -375,7 +465,10 @@ private struct HeroStat: View {
     let isPositive: Bool?
 
     private var textColor: Color {
-        guard let pos = isPositive else { return .white }
+        guard let pos = isPositive else {
+            // Neutral stat (Saved): white when non-negative, red when in the hole
+            return value < 0 ? Color(hex: "FCA5A5") : .white
+        }
         return pos ? Color(hex: "86EFAC") : Color(hex: "FCA5A5")
     }
 
@@ -399,7 +492,8 @@ private struct HeroStat: View {
         f.currencyCode = "USD"
         f.currencySymbol = symbol
         f.maximumFractionDigits = 0
-        return f.string(from: NSDecimalNumber(decimal: abs(value))) ?? symbol + "0"
+        let prefix = (isPositive == nil && value < 0) ? "-" : ""
+        return prefix + (f.string(from: NSDecimalNumber(decimal: abs(value))) ?? symbol + "0")
     }
 }
 

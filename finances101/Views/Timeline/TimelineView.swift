@@ -272,10 +272,10 @@ struct TimelineView: View {
         case .charity: items = items.filter { $0.type == .charityAccrual || $0.type == .charityPayment }
         }
 
-        if let min = Decimal(string: filterMinAmount), !filterMinAmount.isEmpty {
+        if let min = Decimal(userInput: filterMinAmount), !filterMinAmount.isEmpty {
             items = items.filter { $0.amount >= min }
         }
-        if let max = Decimal(string: filterMaxAmount), !filterMaxAmount.isEmpty {
+        if let max = Decimal(userInput: filterMaxAmount), !filterMaxAmount.isEmpty {
             items = items.filter { $0.amount <= max }
         }
 

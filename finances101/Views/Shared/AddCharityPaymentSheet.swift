@@ -25,7 +25,7 @@ struct AddCharityPaymentSheet: View {
     }
 
     private var parsedAmount: Decimal? {
-        Decimal(string: amount.trimmingCharacters(in: .whitespaces))
+        Decimal(userInput: amount)
     }
 
     private var isFormValid: Bool {

@@ -10,6 +10,8 @@ struct WalletDetailSheet: View {
     let symbol: String
 
     @State private var showDeleteAlert = false
+    @State private var balanceText = ""
+    @FocusState private var balanceFocused: Bool
 
     private var walletIncomes: [IncomeEntry] {
         incomes.filter { $0.walletId == wallet.id }.sorted { $0.payoutDate > $1.payoutDate }
@@ -50,12 +52,35 @@ struct WalletDetailSheet: View {
                         statBox(label: "Expenses", value: paidExpenses, color: AppColors.expense)
                     }
 
-                    // Edit name
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Name").font(.caption).foregroundStyle(AppColors.textSecondary)
-                        TextField("Wallet name", text: $wallet.name)
-                            .textFieldStyle(.roundedBorder)
-                            .onChange(of: wallet.name) { _, _ in modelContext.saveWithLogging() }
+                    // Edit name + balance
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Name").font(.caption).foregroundStyle(AppColors.textSecondary)
+                            TextField("Wallet name", text: $wallet.name)
+                                .textFieldStyle(.roundedBorder)
+                                .onChange(of: wallet.name) { _, _ in modelContext.saveWithLogging() }
+                        }
+
+                        // Manual assets (gold, stocks, PayPal, cash) — set the balance directly.
+                        // Crypto wallets are valued on-chain, so no manual balance there.
+                        if !wallet.isCrypto {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Balance").font(.caption).foregroundStyle(AppColors.textSecondary)
+                                HStack {
+                                    Text(symbol).foregroundStyle(AppColors.textSecondary)
+                                    TextField("0.00", text: $balanceText)
+                                        .keyboardType(.decimalPad)
+                                        .focused($balanceFocused)
+                                }
+                                .padding(8)
+                                .background(AppColors.background)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                if !walletIncomes.isEmpty || !walletExpenses.isEmpty {
+                                    Text("Adjusts the starting balance; assigned transactions still apply on top.")
+                                        .font(.caption2).foregroundStyle(AppColors.textSecondary)
+                                }
+                            }
+                        }
                     }
                     .padding()
                     .appCard()
@@ -80,6 +105,8 @@ struct WalletDetailSheet: View {
             .screenBackground()
             .navigationTitle("Wallet")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { balanceText = formatForEditing(balance) }
+            .onChange(of: balanceFocused) { _, focused in if !focused { commitBalance() } }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -96,6 +123,23 @@ struct WalletDetailSheet: View {
                 Text("Transactions assigned to this wallet will become unassigned.")
             }
         }
+    }
+
+    /// Sets the wallet so its displayed balance equals what the user typed.
+    /// initialBalance is back-computed so assigned transactions still apply on top.
+    private func commitBalance() {
+        guard let target = Decimal(userInput: balanceText) else {
+            balanceText = formatForEditing(balance)   // revert invalid input
+            return
+        }
+        wallet.initialBalance = target - (paidIncome - paidExpenses)
+        modelContext.saveWithLogging()
+        HapticManager.selection()
+        balanceText = formatForEditing(balance)
+    }
+
+    private func formatForEditing(_ value: Decimal) -> String {
+        "\(value)"
     }
 
     private func statBox(label: String, value: Decimal, color: Color) -> some View {

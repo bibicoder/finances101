@@ -76,7 +76,7 @@ struct EditIncomeSheet: View {
                         .lineLimit(3...6)
                 }
                 
-                if let amountDecimal = Decimal(string: amount), amountDecimal > 0 {
+                if let amountDecimal = Decimal(userInput: amount), amountDecimal > 0 {
                     Section {
                         HStack {
                             Image(systemName: "heart.fill")
@@ -127,7 +127,7 @@ struct EditIncomeSheet: View {
     }
     
     private func saveChanges() {
-        guard let amountDecimal = Decimal(string: amount) else { return }
+        guard let amountDecimal = Decimal(userInput: amount) else { return }
         
         let wasNotPaid = income.status != .paid
         let nowPaid = status == .paid

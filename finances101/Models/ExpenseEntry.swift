@@ -14,19 +14,21 @@ enum ExpenseStatus: String, Codable, CaseIterable {
 
 @Model
 final class ExpenseEntry: Identifiable {
-    var id: UUID
-    var title: String
-    var amount: Decimal
-    var dueDate: Date
-    var category: String
-    var type: ExpenseType
-    var status: ExpenseStatus
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var title: String = ""
+    var amount: Decimal = 0
+    var dueDate: Date = Date()
+    var category: String = "General"
+    var type: ExpenseType = ExpenseType.optional
+    var status: ExpenseStatus = ExpenseStatus.planned
     var note: String?
-    var isRecurring: Bool
+    var isRecurring: Bool = false
     var recurringTemplateId: UUID?
-    var isDebtPayment: Bool
+    var isDebtPayment: Bool = false
     var walletId: UUID?
-    var createdAt: Date
+    var externalId: String?   // e.g. Plaid transaction_id — used to skip duplicate imports
+    var createdAt: Date = Date()
 
     init(
         id: UUID = UUID(),
@@ -40,7 +42,8 @@ final class ExpenseEntry: Identifiable {
         isRecurring: Bool = false,
         recurringTemplateId: UUID? = nil,
         isDebtPayment: Bool = false,
-        walletId: UUID? = nil
+        walletId: UUID? = nil,
+        externalId: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -54,6 +57,7 @@ final class ExpenseEntry: Identifiable {
         self.recurringTemplateId = recurringTemplateId
         self.isDebtPayment = isDebtPayment
         self.walletId = walletId
+        self.externalId = externalId
         self.createdAt = Date()
     }
 }

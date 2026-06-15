@@ -3,14 +3,15 @@ import SwiftData
 
 @Model
 final class Debt {
-    var id: UUID
-    var creditor: String
-    var totalAmount: Decimal
-    var paidAmount: Decimal
-    var priority: Int
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var creditor: String = ""
+    var totalAmount: Decimal = 0
+    var paidAmount: Decimal = 0
+    var priority: Int = 1
     var targetDate: Date?
     var note: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
     var interestRate: Double?    // APR %, e.g. 18.5 means 18.5%
     var minimumPayment: Decimal? // monthly minimum payment
     

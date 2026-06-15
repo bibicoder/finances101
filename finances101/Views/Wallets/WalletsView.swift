@@ -56,10 +56,20 @@ struct WalletsView: View {
                 AddWalletSheet()
             }
             .sheet(isPresented: $showTransfer) {
-                WalletTransferSheet(wallets: wallets)
+                // Crypto wallets are read-only (tracked by address) — no manual transfers
+                WalletTransferSheet(wallets: wallets.filter { !$0.isCrypto })
             }
             .sheet(item: $selectedWallet) { wallet in
                 WalletDetailSheet(wallet: wallet, incomes: incomes, expenses: expenses, symbol: currencySymbol)
+            }
+            .task {
+                // Refresh on-chain balances + prices for crypto wallets
+                await CryptoService.refreshAll(wallets)
+                modelContext.saveWithLogging()
+            }
+            .refreshable {
+                await CryptoService.refreshAll(wallets)
+                modelContext.saveWithLogging()
             }
         }
     }
@@ -69,19 +79,7 @@ struct WalletsView: View {
     }
 
     private func walletBalance(_ wallet: Wallet) -> Decimal {
-        let income = incomes
-            .filter { $0.walletId == wallet.id && $0.status == .paid }
-            .reduce(Decimal(0)) { $0 + $1.amount }
-        let expense = expenses
-            .filter { $0.walletId == wallet.id && $0.status == .paid }
-            .reduce(Decimal(0)) { $0 + $1.amount }
-        let transfersIn = transfers
-            .filter { $0.toWalletId == wallet.id }
-            .reduce(Decimal(0)) { $0 + $1.amount }
-        let transfersOut = transfers
-            .filter { $0.fromWalletId == wallet.id }
-            .reduce(Decimal(0)) { $0 + $1.amount }
-        return wallet.initialBalance + income - expense + transfersIn - transfersOut
+        WalletBalanceCalculator.balance(of: wallet, incomes: incomes, expenses: expenses, transfers: transfers)
     }
 
     private var emptyState: some View {
@@ -202,6 +200,12 @@ private struct WalletCard: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            if wallet.isCrypto, let amount = wallet.cryptoAmount, let chain = wallet.cryptoChain {
+                Text("\(amount.formatted(.number.precision(.fractionLength(0...6)))) \(chain)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity)

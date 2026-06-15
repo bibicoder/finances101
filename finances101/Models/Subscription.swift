@@ -36,21 +36,28 @@ enum BillingCycle: String, Codable, CaseIterable {
 
 @Model
 final class Subscription {
-    var id: UUID
-    var name: String
-    var amount: Decimal
-    var billingCycle: BillingCycle
-    var nextBillingDate: Date
-    var category: String
-    var icon: String
-    var colorHex: String
-    var isActive: Bool
-    var notifyDaysBefore: Int
+    // Inline defaults are required for CloudKit-backed SwiftData stores
+    var id: UUID = UUID()
+    var name: String = ""
+    var amount: Decimal = 0
+    var billingCycle: BillingCycle = BillingCycle.monthly
+    var nextBillingDate: Date = Date()
+    var category: String = "Subscriptions"
+    var icon: String = "play.rectangle.fill"
+    var colorHex: String = "3FA7F5"
+    var isActive: Bool = true
+    var notifyDaysBefore: Int = 3
     var note: String?
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     var monthlyAmount: Decimal {
-        amount * billingCycle.monthlyMultiplier
+        // Exact division instead of rounded multipliers (0.3333, 0.0833)
+        switch billingCycle {
+        case .weekly:    return amount * 52 / 12
+        case .monthly:   return amount
+        case .quarterly: return amount / 3
+        case .yearly:    return amount / 12
+        }
     }
 
     var daysUntilBilling: Int {
